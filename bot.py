@@ -86,7 +86,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_member:
         # User is not a member. Show subscription prompt.
         keyboard = [
-            [InlineKeyboardButton("📢 Join Our fucking Channel", url="https://t.me/saudi_1xbet_accounts")],
+            [InlineKeyboardButton("📢 Join Our Channel", url="https://t.me/saudi_1xbet_accounts")],
             [InlineKeyboardButton("✅ I've Joined! Check Subscription", callback_data="check_subscription")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
