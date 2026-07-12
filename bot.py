@@ -188,7 +188,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "• Technical support\n"
             "• Questions about 1xBet\n"
             "• Cashback inquiries\n\n"
-            f"👉 Click here: {AGENT_USERNAME}",
+            f"👉 Click here: https://t.me/*Saudi_1xbet_agent*",
             parse_mode="Markdown",
             reply_markup=get_back_to_menu_keyboard()  # Added back button
         )
