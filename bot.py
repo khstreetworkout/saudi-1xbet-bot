@@ -359,6 +359,90 @@ async def list_accounts(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="Markdown"
     )
 
+async def delete_account(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Delete an account by username"""
+    if update.effective_user.id != ADMIN_ID:
+        await update.message.reply_text("⛔ *Unauthorized!*", parse_mode="Markdown")
+        return
+    
+    if not context.args:
+        await update.message.reply_text(
+            "📝 *How to delete an account:*\n\n"
+            "`/del Username: player1`\n\n"
+            "**Example:**\n"
+            "`/del Username: 1736011027`",
+            parse_mode="Markdown"
+        )
+        return
+    
+    text = " ".join(context.args)
+    
+    # Extract username from "Username: value" format
+    match = re.search(r'Username:\s*([^,]+)', text, re.IGNORECASE)
+    if not match:
+        await update.message.reply_text(
+            "❌ *Invalid format!*\n\n"
+            "Use:\n"
+            "`/del Username: player1`",
+            parse_mode="Markdown"
+        )
+        return
+    
+    username_to_delete = match.group(1).strip()
+    
+    accounts = load_accounts()
+    
+    # Find and remove the account
+    account_to_delete = None
+    for account in accounts:
+        if account.startswith(f"{username_to_delete}:"):
+            account_to_delete = account
+            break
+    
+    if not account_to_delete:
+        await update.message.reply_text(
+            f"❌ *Account with username `{username_to_delete}` not found!*\n\n"
+            "Use `/listaccounts` to see available accounts.",
+            parse_mode="Markdown"
+        )
+        return
+    
+    accounts.remove(account_to_delete)
+    save_accounts(accounts)
+    
+    await update.message.reply_text(
+        f"✅ *Account Deleted!*\n\n"
+        f"Removed: `{account_to_delete}`\n\n"
+        f"📦 *Total Available:* {len(accounts)}",
+        parse_mode="Markdown"
+    )
+    
+async def clear_accounts(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Delete ALL available accounts"""
+    if update.effective_user.id != ADMIN_ID:
+        await update.message.reply_text("⛔ *Unauthorized!*", parse_mode="Markdown")
+        return
+    
+    accounts = load_accounts()
+    
+    if not accounts:
+        await update.message.reply_text(
+            "📭 *No accounts to clear!*",
+            parse_mode="Markdown"
+        )
+        return
+    
+    count = len(accounts)
+    save_accounts([])  # Save empty list
+    
+    await update.message.reply_text(
+        f"🗑️ *Cleared {count} account(s)!*\n\n"
+        f"📦 *Total Available:* 0\n\n"
+        f"⚠️ You can now add new accounts with `/ass`",
+        parse_mode="Markdown"
+    )
+
+
 async def reset_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
         await update.message.reply_text("⛔ *Unauthorized!*", parse_mode="Markdown")
@@ -410,6 +494,8 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "• *30% CASHBACK* on all losses!\n\n"
         "📊 *Admin Commands:*\n"
         "• `/ass Username: user Password: pass` - Add account\n"
+        "• `/del Username: user` - Delete an account\n"
+        "• `/clearaccounts` - Delete ALL accounts ⚠️\n"
         "• `/stats` - View bot statistics\n"
         "• `/listaccounts` - View all accounts\n"
         "• `/resetuser user_id` - Reset user\n\n"
@@ -433,6 +519,8 @@ def main():
     app.add_handler(CommandHandler("stats", stats))
     app.add_handler(CommandHandler("listaccounts", list_accounts))
     app.add_handler(CommandHandler("resetuser", reset_user))
+    app.add_handler(CommandHandler("del", delete_account))
+    app.add_handler(CommandHandler("clearaccounts", clear_accounts))
     app.add_handler(CallbackQueryHandler(button_handler))
     
     print("=" * 50)
