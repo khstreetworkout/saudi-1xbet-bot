@@ -343,18 +343,21 @@ async def list_accounts(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("📭 *No accounts available.*", parse_mode="Markdown")
         return
     
-    # Format accounts nicely
-    formatted = []
+    # Format accounts with proper line breaks
+    formatted_accounts = []
     for i, acc in enumerate(accounts):
         parts = acc.split(":", 1)
         if len(parts) == 2:
-            formatted.append(f"{i+1}. *Username:* `{parts[0]}`\n   *Password:* `{parts[1]}`")
+            username, password = parts
+            formatted_accounts.append(f"{i+1}. *Username:* `{username}`\n   *Password:* `{password}`")
         else:
-            formatted.append(f"{i+1}. `{acc}`")
+            formatted_accounts.append(f"{i+1}. `{acc}`")
+    
+    account_list = "\n\n".join(formatted_accounts)
     
     await update.message.reply_text(
         f"📋 *Available Accounts ({len(accounts)})*\n\n"
-        f"{'\\n'.join(formatted)}\n\n"
+        f"{account_list}\n\n"
         f"💰 *30% Cashback on all losses!*",
         parse_mode="Markdown"
     )
