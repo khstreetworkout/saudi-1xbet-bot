@@ -89,6 +89,16 @@ def get_back_to_menu_keyboard():
         [InlineKeyboardButton("🔙 Back to Menu", callback_data="back_to_menu")]
     ])
 
+def get_action_message(action_name):
+    """Return the action message that shows what the user clicked"""
+    action_messages = {
+        "get_account": "🎰 Get Account",
+        "talk_agent": "💬 Talk to Agent",
+        "my_accounts": "📋 My Accounts",
+        "back_to_menu": "🔙 Back to Menu"
+    }
+    return action_messages.get(action_name, "🔄 Action")
+
 # ============================================
 # MAIN BOT COMMANDS
 # ============================================
@@ -149,10 +159,16 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Get the user who clicked
     user_id = str(query.from_user.id)
     used_data = load_used()
+    
+    # Get the action name for the message
+    action_name = query.data
+    action_message = get_action_message(action_name)
 
-    # Handle "Back to Menu" - send new menu message
+    # FIRST: Send the user's action as a text message (like they typed it)
+    await query.message.reply_text(f"👉 *{action_message}*", parse_mode="Markdown")
+
+    # Handle "Back to Menu"
     if query.data == "back_to_menu":
-        # Send a new main menu message
         await query.message.reply_text(
             "🎰 *Welcome to Saudi 1xBet Bot!*\n\n"
             "💰 *Get 30% CASHBACK on all losses!*\n"
@@ -194,7 +210,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "• Technical support\n"
             "• Questions about 1xBet\n"
             "• Cashback inquiries\n\n"
-            f"👉 Click here: {AGENT_USERNAME}",
+            f"👉 Click here: https://t.me/*Saudi_1xbet_agent*",
             parse_mode="Markdown",
             reply_markup=get_back_to_menu_keyboard()
         )
@@ -317,7 +333,7 @@ async def handle_my_accounts(query, user_id, used_data):
     )
 
 # ============================================
-# ADMIN COMMANDS (These stay as text commands - only you can use them)
+# ADMIN COMMANDS
 # ============================================
 
 async def add_account_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
