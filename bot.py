@@ -20,11 +20,21 @@ ADMIN_ID = 6012442109  # Your Telegram ID
 AGENT_USERNAME = "@Saudi_1xbet_agent"  # Your agent's Telegram username
 
 # ============================================
+# DATA DIRECTORY - For persistent storage on Railway
+# ============================================
+# Check if running on Railway (has /app/data volume)
+if os.path.exists("/app/data"):
+    DATA_DIR = "/app/data"
+else:
+    # Local development fallback
+    DATA_DIR = "."
+
+ACCOUNTS_FILE = os.path.join(DATA_DIR, "accounts.json")
+USED_FILE = os.path.join(DATA_DIR, "used_accounts.json")
+
+# ============================================
 # FILE HANDLING
 # ============================================
-ACCOUNTS_FILE = "accounts.json"
-USED_FILE = "used_accounts.json"
-
 def load_accounts():
     if os.path.exists(ACCOUNTS_FILE):
         with open(ACCOUNTS_FILE, 'r') as f:
