@@ -292,20 +292,19 @@ async def add_account_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     current_accounts = load_accounts()
     current_accounts.extend(new_accounts)
     save_accounts(current_accounts)
-    
-    # Show added accounts nicely (without \n issues)
+
+    # Show added accounts nicely (fixed line breaks)
     added_display = []
     for acc in new_accounts:
         parts = acc.split(":", 1)
         if len(parts) == 2:
-              added_display.append(f"• *Username:* `{parts[0]}`\n   *Password:* `{parts[1]}`")
+            added_display.append(f"• *Username:* `{parts[0]}`\n   *Password:* `{parts[1]}`")
 
-    # Join with double newlines for proper spacing
     added_text = "\n\n".join(added_display)
 
     await update.message.reply_text(
         f"✅ *Added {len(new_accounts)} account(s)!*\n\n"
-        f"{'\\n'.join(added_display)}\n\n"
+        f"{added_text}\n\n"
         f"📦 *Total Available:* {len(current_accounts)}\n"
         f"💰 *All accounts get 30% cashback!*",
         parse_mode="Markdown"
