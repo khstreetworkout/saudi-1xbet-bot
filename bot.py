@@ -71,8 +71,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
 
     # Check if the user is a member of your channel
-    is_member = await is_user_member(user_id, "saudi_1xbet_accounts")
-
+    is_member = await is_user_member(user_id, "saudi_1xbet_accounts", context)
+    
     if not is_member:
         # User is not a member. Show subscription prompt.
         keyboard = [
@@ -93,22 +93,20 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # If user IS a member, show the main menu.
     await show_main_menu(update, context)
 
-async def is_user_member(user_id, channel_username):
+async def is_user_member(user_id, channel_username, context):
     """Check if a user is a member of the channel."""
     try:
-        # Get the chat member status for the user in your channel
-        # Note: The bot must be an admin in the channel for this to work reliably.
+        # Get the bot instance from context
+        bot = context.bot
         chat_member = await bot.get_chat_member(chat_id=f"@{channel_username}", user_id=user_id)
-        # Statuses that mean they are a member
         if chat_member.status in ["member", "administrator", "creator"]:
             return True
         return False
     except Exception as e:
-        # If there's an error (e.g., user not found), they are not a member.
         print(f"Error checking membership: {e}")
         return False
 
-async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def show_main_menu(update, context):
     """Display the main menu with account options."""
     keyboard = [
         [
@@ -121,25 +119,36 @@ async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    await update.message.reply_text(
-        "🎰 *Welcome to Saudi 1xBet Bot!*\n\n"
-        "💰 *Get 30% CASHBACK on all losses!*\n"
-        "📌 You can get up to *3 accounts per day*\n\n"
-        "💡 Click the buttons below:",
-        parse_mode="Markdown",
-        reply_markup=reply_markup
-    )
-
+    # Handle both Message and CallbackQuery updates
+    if hasattr(update, 'message') and update.message:
+        await update.message.reply_text(
+            "🎰 *Welcome to Saudi 1xBet Bot!*\n\n"
+            "💰 *Get 30% CASHBACK on all losses!*\n"
+            "📌 You can get up to *3 accounts per day*\n\n"
+            "💡 Click the buttons below:",
+            parse_mode="Markdown",
+            reply_markup=reply_markup
+        )
+    else:
+        # For callback queries, use query.edit_message_text
+        query = update.callback_query
+        await query.edit_message_text(
+            "🎰 *Welcome to Saudi 1xBet Bot!*\n\n"
+            "💰 *Get 30% CASHBACK on all losses!*\n"
+            "📌 You can get up to *3 accounts per day*\n\n"
+            "💡 Click the buttons below:",
+            parse_mode="Markdown",
+            reply_markup=reply_markup
+        )
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    await query.answer()
+    await query.answer()  # Keep only this one at the top!
 
     if query.data == "check_subscription":
         user_id = query.from_user.id
-        is_member = await is_user_member(user_id, "saudi_1xbet_accounts")
+        is_member = await is_user_member(user_id, "saudi_1xbet_accounts", context)
         if is_member:
             await query.edit_message_text("✅ Subscription verified! Welcome!")
-            # Show the main menu
             await show_main_menu(update, context)
         else:
             await query.edit_message_text(
@@ -148,11 +157,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 parse_mode="Markdown"
             )
         return
-    # Answer the callback query to stop loading animation
-    try:
-        await query.answer()
-    except Exception as e:
-        print(f"Callback answer error: {e}")
     
     user_id = str(query.from_user.id)
     used_data = load_used()
@@ -167,7 +171,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "• Technical support\n"
             "• Questions about 1xBet\n"
             "• Cashback inquiries\n\n"
-            f"👉 Click here: https://t.me/*Saudi_1xbet_agent*",
+            f"👉 Click here: {AGENT_USERNAME}",
             parse_mode="Markdown"
         )
     elif query.data == "my_accounts":
