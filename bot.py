@@ -9,8 +9,8 @@ import os
 import json
 import re
 from datetime import datetime
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
 
 # ============================================
 # CONFIGURATION - CHANGE THESE!
@@ -72,32 +72,28 @@ def get_user_accounts(user_id, used_data):
     return [entry["account"] for entry in used_data[user_id]]
 
 def get_main_menu_keyboard():
-    """Return the main menu keyboard"""
-    return InlineKeyboardMarkup([
-        [
-            InlineKeyboardButton("🎰 Get Account", callback_data="get_account"),
-            InlineKeyboardButton("💬 Talk to Agent", callback_data="talk_agent")
-        ],
-        [
-            InlineKeyboardButton("📋 My Accounts", callback_data="my_accounts")
-        ]
-    ])
+    """Return the main menu keyboard (reply keyboard)"""
+    keyboard = [
+        ["🎰 Get Account", "💬 Talk to Agent"],
+        ["📋 My Accounts"]
+    ]
+    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
 def get_back_to_menu_keyboard():
-    """Return a single button to go back to menu"""
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("🔙 Back to Menu", callback_data="back_to_menu")]
-    ])
+    """Return back button (reply keyboard)"""
+    keyboard = [
+        ["🔙 Back to Menu"]
+    ]
+    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
-def get_action_message(action_name):
-    """Return the action message that shows what the user clicked"""
-    action_messages = {
-        "get_account": "🎰 Get Account",
-        "talk_agent": "💬 Talk to Agent",
-        "my_accounts": "📋 My Accounts",
-        "back_to_menu": "🔙 Back to Menu"
-    }
-    return action_messages.get(action_name, "🔄 Action")
+def get_get_another_keyboard():
+    """Return get another + back menu"""
+    keyboard = [
+        ["🎰 Get Another Account"],
+        ["📋 My Accounts"],
+        ["🔙 Back to Menu"]
+    ]
+    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
 # ============================================
 # MAIN BOT COMMANDS
@@ -142,12 +138,11 @@ async def show_main_menu(update, context):
     """Display the main menu with account options."""
     keyboard = get_main_menu_keyboard()
     
-    # Always send a NEW message
     await update.message.reply_text(
         "🎰 *Welcome to Saudi 1xBet Bot!*\n\n"
         "💰 *Get 30% CASHBACK on all losses!*\n"
         "📌 You can get up to *3 accounts per day*\n\n"
-        "💡 Click the buttons below:",
+        "👆 Click the buttons below:",
         parse_mode="Markdown",
         reply_markup=keyboard
     )
@@ -156,29 +151,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     
-    # Get the user who clicked
-    user_id = str(query.from_user.id)
-    used_data = load_used()
-    
-    # Get the action name for the message
-    action_name = query.data
-    action_message = get_action_message(action_name)
-
-    # FIRST: Send the user's action as a text message (like they typed it)
-    await query.message.reply_text(f"👉 *{action_message}*", parse_mode="Markdown")
-
-    # Handle "Back to Menu"
-    if query.data == "back_to_menu":
-        await query.message.reply_text(
-            "🎰 *Welcome to Saudi 1xBet Bot!*\n\n"
-            "💰 *Get 30% CASHBACK on all losses!*\n"
-            "📌 You can get up to *3 accounts per day*\n\n"
-            "💡 Click the buttons below:",
-            parse_mode="Markdown",
-            reply_markup=get_main_menu_keyboard()
-        )
-        return
-
     if query.data == "check_subscription":
         user_id = query.from_user.id
         is_member = await is_user_member(user_id, "saudi_1xbet_accounts", context)
@@ -199,11 +171,33 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 reply_markup=InlineKeyboardMarkup(keyboard)
             )
         return
+
+# ============================================
+# MESSAGE HANDLER - This is where the magic happens!
+# ============================================
+
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle user messages from reply keyboard"""
+    user_id = str(update.effective_user.id)
+    message_text = update.message.text
+    used_data = load_used()
     
-    if query.data == "get_account":
-        await handle_get_account(query, user_id, used_data)
-    elif query.data == "talk_agent":
-        await query.message.reply_text(
+    # Show typing indicator
+    await update.message.chat.send_action(action="typing")
+    
+    # Handle Back to Menu
+    if message_text == "🔙 Back to Menu":
+        await show_main_menu(update, context)
+        return
+    
+    # Handle Get Account
+    if message_text == "🎰 Get Account" or message_text == "🎰 Get Another Account":
+        await handle_get_account(update, user_id, used_data)
+        return
+    
+    # Handle Talk to Agent
+    if message_text == "💬 Talk to Agent":
+        await update.message.reply_text(
             f"💬 *Contact Our Agent*\n\n"
             f"📞 Reach out to *{AGENT_USERNAME}* for:\n"
             "• Account issues\n"
@@ -214,14 +208,27 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode="Markdown",
             reply_markup=get_back_to_menu_keyboard()
         )
-    elif query.data == "my_accounts":
-        await handle_my_accounts(query, user_id, used_data)
+        return
+    
+    # Handle My Accounts
+    if message_text == "📋 My Accounts":
+        await handle_my_accounts(update, user_id, used_data)
+        return
+    
+    # If unknown message
+    await update.message.reply_text(
+        "❌ *I don't understand that command.*\n\n"
+        "Please use the buttons below:",
+        parse_mode="Markdown",
+        reply_markup=get_main_menu_keyboard()
+    )
 
-async def handle_get_account(query, user_id, used_data):
+async def handle_get_account(update, user_id, used_data):
+    """Handle account distribution"""
     today_count = get_user_today_count(user_id, used_data)
     
     if today_count >= 3:
-        await query.message.reply_text(
+        await update.message.reply_text(
             "❌ *Daily Limit Reached!*\n\n"
             f"You've already received *{today_count}* accounts today.\n"
             "Maximum is *3 accounts per day*.\n\n"
@@ -235,7 +242,7 @@ async def handle_get_account(query, user_id, used_data):
     accounts = load_accounts()
     
     if not accounts:
-        await query.message.reply_text(
+        await update.message.reply_text(
             "❌ *No Accounts Available!*\n\n"
             "All accounts have been distributed.\n"
             "Please check back later or contact our agent.",
@@ -268,18 +275,7 @@ async def handle_get_account(query, user_id, used_data):
     else:
         account_display = f"`{account}`"
     
-    # Keyboard with Get Another, My Accounts, and Back to Menu
-    keyboard = InlineKeyboardMarkup([
-        [
-            InlineKeyboardButton("🎰 Get Another", callback_data="get_account"),
-            InlineKeyboardButton("📋 My Accounts", callback_data="my_accounts")
-        ],
-        [
-            InlineKeyboardButton("🔙 Back to Menu", callback_data="back_to_menu")
-        ]
-    ])
-    
-    await query.message.reply_text(
+    await update.message.reply_text(
         f"✅ *Account Assigned!*\n\n"
         f"{account_display}\n\n"
         f"💰 *30% CASHBACK on all losses!*\n\n"
@@ -288,14 +284,15 @@ async def handle_get_account(query, user_id, used_data):
         f"💡 *Tap to copy!*\n"
         f"🔒 Save it securely.",
         parse_mode="Markdown",
-        reply_markup=keyboard
+        reply_markup=get_get_another_keyboard()
     )
 
-async def handle_my_accounts(query, user_id, used_data):
+async def handle_my_accounts(update, user_id, used_data):
+    """Handle My Accounts"""
     accounts = get_user_accounts(user_id, used_data)
     
     if not accounts:
-        await query.message.reply_text(
+        await update.message.reply_text(
             "📋 *No Accounts Found*\n\n"
             "You haven't received any accounts yet.\n"
             "Use 'Get Account' to get your first one!",
@@ -316,12 +313,7 @@ async def handle_my_accounts(query, user_id, used_data):
     account_list = "\n\n".join(formatted_accounts)
     today_count = get_user_today_count(user_id, used_data)
     
-    keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🎰 Get Another", callback_data="get_account")],
-        [InlineKeyboardButton("🔙 Back to Menu", callback_data="back_to_menu")]
-    ])
-    
-    await query.message.reply_text(
+    await update.message.reply_text(
         f"📋 *Your Accounts*\n\n"
         f"{account_list}\n\n"
         f"📊 *Today's Usage:* {today_count}/3\n"
@@ -329,7 +321,7 @@ async def handle_my_accounts(query, user_id, used_data):
         f"💰 *30% Cashback on all losses!*\n"
         f"💡 *Tap any to copy*",
         parse_mode="Markdown",
-        reply_markup=keyboard
+        reply_markup=get_get_another_keyboard()
     )
 
 # ============================================
@@ -584,7 +576,12 @@ def main():
     app.add_handler(CommandHandler("resetuser", reset_user))
     app.add_handler(CommandHandler("del", delete_account))
     app.add_handler(CommandHandler("clearaccounts", clear_accounts))
+    
+    # Handle inline button callbacks
     app.add_handler(CallbackQueryHandler(button_handler))
+    
+    # Handle messages from reply keyboard
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     
     print("=" * 50)
     print("🤖 Saudi 1xBet Bot is RUNNING!")
