@@ -171,7 +171,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "• Technical support\n"
             "• Questions about 1xBet\n"
             "• Cashback inquiries\n\n"
-            f"👉 Click here: https://web.telegram.org/k/#@Saudi_1xbet_agent",
+            f"👉 Click here: *https://web.telegram.org/k/#@Saudi_1xbet_agent*",
             parse_mode="Markdown"
         )
     elif query.data == "my_accounts":
