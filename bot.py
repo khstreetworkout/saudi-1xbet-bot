@@ -22,11 +22,9 @@ AGENT_USERNAME = "@Saudi_1xbet_agent"  # Your agent's Telegram username
 # ============================================
 # DATA DIRECTORY - For persistent storage on Railway
 # ============================================
-# Check if running on Railway (has /app/data volume)
 if os.path.exists("/app/data"):
     DATA_DIR = "/app/data"
 else:
-    # Local development fallback
     DATA_DIR = "."
 
 ACCOUNTS_FILE = os.path.join(DATA_DIR, "accounts.json")
@@ -73,6 +71,24 @@ def get_user_accounts(user_id, used_data):
         return []
     return [entry["account"] for entry in used_data[user_id]]
 
+def get_main_menu_keyboard():
+    """Return the main menu keyboard"""
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("🎰 Get Account", callback_data="get_account"),
+            InlineKeyboardButton("💬 Talk to Agent", callback_data="talk_agent")
+        ],
+        [
+            InlineKeyboardButton("📋 My Accounts", callback_data="my_accounts")
+        ]
+    ])
+
+def get_back_to_menu_keyboard():
+    """Return a single button to go back to menu"""
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("🔙 Back to Menu", callback_data="back_to_menu")]
+    ])
+
 # ============================================
 # MAIN BOT COMMANDS
 # ============================================
@@ -84,7 +100,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     is_member = await is_user_member(user_id, "saudi_1xbet_accounts", context)
     
     if not is_member:
-        # User is not a member. Show subscription prompt.
         keyboard = [
             [InlineKeyboardButton("📢 Join Our Channel", url="https://t.me/saudi_1xbet_accounts")],
             [InlineKeyboardButton("✅ I've Joined! Check Subscription", callback_data="check_subscription")]
@@ -100,13 +115,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    # If user IS a member, show the main menu.
     await show_main_menu(update, context)
 
 async def is_user_member(user_id, channel_username, context):
-    """Check if a user is a member of the channel."""
     try:
-        # Get the bot instance from context
         bot = context.bot
         chat_member = await bot.get_chat_member(chat_id=f"@{channel_username}", user_id=user_id)
         if chat_member.status in ["member", "administrator", "creator"]:
@@ -118,18 +130,8 @@ async def is_user_member(user_id, channel_username, context):
 
 async def show_main_menu(update, context):
     """Display the main menu with account options."""
-    keyboard = [
-        [
-            InlineKeyboardButton("🎰 Get Account", callback_data="get_account"),
-            InlineKeyboardButton("💬 Talk to Agent", callback_data="talk_agent")
-        ],
-        [
-            InlineKeyboardButton("📋 My Accounts", callback_data="my_accounts")
-        ]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
+    keyboard = get_main_menu_keyboard()
     
-    # Handle both Message and CallbackQuery updates
     if hasattr(update, 'message') and update.message:
         await update.message.reply_text(
             "🎰 *Welcome to Saudi 1xBet Bot!*\n\n"
@@ -137,10 +139,9 @@ async def show_main_menu(update, context):
             "📌 You can get up to *3 accounts per day*\n\n"
             "💡 Click the buttons below:",
             parse_mode="Markdown",
-            reply_markup=reply_markup
+            reply_markup=keyboard
         )
     else:
-        # For callback queries, use query.edit_message_text
         query = update.callback_query
         await query.edit_message_text(
             "🎰 *Welcome to Saudi 1xBet Bot!*\n\n"
@@ -148,11 +149,17 @@ async def show_main_menu(update, context):
             "📌 You can get up to *3 accounts per day*\n\n"
             "💡 Click the buttons below:",
             parse_mode="Markdown",
-            reply_markup=reply_markup
+            reply_markup=keyboard
         )
+
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    await query.answer()  # Keep only this one at the top!
+    await query.answer()
+
+    # Handle "Back to Menu" - this is the key new feature!
+    if query.data == "back_to_menu":
+        await show_main_menu(update, context)
+        return
 
     if query.data == "check_subscription":
         user_id = query.from_user.id
@@ -181,8 +188,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "• Technical support\n"
             "• Questions about 1xBet\n"
             "• Cashback inquiries\n\n"
-            f"👉 Click here: t.me/*Saudi_1xbet_agent*",
-            parse_mode="Markdown"
+            f"👉 Click here: {AGENT_USERNAME}",
+            parse_mode="Markdown",
+            reply_markup=get_back_to_menu_keyboard()  # Added back button
         )
     elif query.data == "my_accounts":
         await handle_my_accounts(query, user_id, used_data)
@@ -197,7 +205,8 @@ async def handle_get_account(query, user_id, used_data):
             "Maximum is *3 accounts per day*.\n\n"
             "⏳ Please try again tomorrow.\n"
             "📋 Use 'My Accounts' to see your accounts.",
-            parse_mode="Markdown"
+            parse_mode="Markdown",
+            reply_markup=get_back_to_menu_keyboard()
         )
         return
     
@@ -207,9 +216,9 @@ async def handle_get_account(query, user_id, used_data):
         await query.edit_message_text(
             "❌ *No Accounts Available!*\n\n"
             "All accounts have been distributed.\n"
-            "Please check back later or contact our agent.\n\n"
-            f"💬 Talk to Agent: {AGENT_USERNAME}",
-            parse_mode="Markdown"
+            "Please check back later or contact our agent.",
+            parse_mode="Markdown",
+            reply_markup=get_back_to_menu_keyboard()
         )
         return
     
@@ -229,14 +238,6 @@ async def handle_get_account(query, user_id, used_data):
     
     remaining = len(accounts)
     
-    keyboard = [
-        [
-            InlineKeyboardButton("🎰 Get Another", callback_data="get_account"),
-            InlineKeyboardButton("📋 My Accounts", callback_data="my_accounts")
-        ]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
     # Format the account nicely
     parts = account.split(":", 1)
     if len(parts) == 2:
@@ -244,6 +245,17 @@ async def handle_get_account(query, user_id, used_data):
         account_display = f"*Username:* `{username}`\n*Password:* `{password}`"
     else:
         account_display = f"`{account}`"
+    
+    # Show account with buttons: "Get Another" and "Back to Menu"
+    keyboard = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("🎰 Get Another", callback_data="get_account"),
+            InlineKeyboardButton("📋 My Accounts", callback_data="my_accounts")
+        ],
+        [
+            InlineKeyboardButton("🔙 Back to Menu", callback_data="back_to_menu")
+        ]
+    ])
     
     await query.edit_message_text(
         f"✅ *Account Assigned!*\n\n"
@@ -254,7 +266,7 @@ async def handle_get_account(query, user_id, used_data):
         f"💡 *Tap to copy!*\n"
         f"🔒 Save it securely.",
         parse_mode="Markdown",
-        reply_markup=reply_markup
+        reply_markup=keyboard
     )
 
 async def handle_my_accounts(query, user_id, used_data):
@@ -265,11 +277,11 @@ async def handle_my_accounts(query, user_id, used_data):
             "📋 *No Accounts Found*\n\n"
             "You haven't received any accounts yet.\n"
             "Use 'Get Account' to get your first one!",
-            parse_mode="Markdown"
+            parse_mode="Markdown",
+            reply_markup=get_back_to_menu_keyboard()
         )
         return
     
-    # Format accounts nicely
     formatted_accounts = []
     for acc in accounts:
         acc_parts = acc.split(":", 1)
@@ -282,6 +294,11 @@ async def handle_my_accounts(query, user_id, used_data):
     account_list = "\n\n".join(formatted_accounts)
     today_count = get_user_today_count(user_id, used_data)
     
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🎰 Get Another", callback_data="get_account")],
+        [InlineKeyboardButton("🔙 Back to Menu", callback_data="back_to_menu")]
+    ])
+    
     await query.edit_message_text(
         f"📋 *Your Accounts*\n\n"
         f"{account_list}\n\n"
@@ -289,15 +306,15 @@ async def handle_my_accounts(query, user_id, used_data):
         f"📦 *Total Accounts:* {len(accounts)}\n\n"
         f"💰 *30% Cashback on all losses!*\n"
         f"💡 *Tap any to copy*",
-        parse_mode="Markdown"
+        parse_mode="Markdown",
+        reply_markup=keyboard
     )
 
 # ============================================
-# ADMIN COMMANDS
+# ADMIN COMMANDS (These stay as text commands - only you can use them)
 # ============================================
 
 async def add_account_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Add accounts with format: /ass Username: 123456789 Password: abcd1234"""
     if update.effective_user.id != ADMIN_ID:
         await update.message.reply_text("⛔ *Unauthorized!*", parse_mode="Markdown")
         return
@@ -314,16 +331,11 @@ async def add_account_command(update: Update, context: ContextTypes.DEFAULT_TYPE
         )
         return
     
-    # Join all arguments
     text = " ".join(context.args)
-    
-    # Parse accounts with format: "Username: xxx Password: yyy"
-    # Pattern to match Username: value Password: value
     pattern = r'Username:\s*([^,]+?)\s*Password:\s*([^,]+?)(?:,|$)'
     matches = re.findall(pattern, text, re.IGNORECASE)
     
     if not matches:
-        # Try alternative format: "user:pass"
         accounts_input = text.split(",")
         new_accounts = [acc.strip() for acc in accounts_input if ":" in acc]
         if new_accounts:
@@ -339,7 +351,6 @@ async def add_account_command(update: Update, context: ContextTypes.DEFAULT_TYPE
             )
             return
     
-    # Convert matches to "username:password" format
     new_accounts = []
     for username, password in matches:
         username = username.strip()
@@ -360,7 +371,6 @@ async def add_account_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     current_accounts.extend(new_accounts)
     save_accounts(current_accounts)
 
-    # Show added accounts nicely (fixed line breaks)
     added_display = []
     for acc in new_accounts:
         parts = acc.split(":", 1)
@@ -412,7 +422,6 @@ async def list_accounts(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("📭 *No accounts available.*", parse_mode="Markdown")
         return
     
-    # Format accounts with proper line breaks
     formatted_accounts = []
     for i, acc in enumerate(accounts):
         parts = acc.split(":", 1)
@@ -432,7 +441,6 @@ async def list_accounts(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def delete_account(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Delete an account by username"""
     if update.effective_user.id != ADMIN_ID:
         await update.message.reply_text("⛔ *Unauthorized!*", parse_mode="Markdown")
         return
@@ -448,8 +456,6 @@ async def delete_account(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     text = " ".join(context.args)
-    
-    # Extract username from "Username: value" format
     match = re.search(r'Username:\s*([^,]+)', text, re.IGNORECASE)
     if not match:
         await update.message.reply_text(
@@ -461,10 +467,8 @@ async def delete_account(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     username_to_delete = match.group(1).strip()
-    
     accounts = load_accounts()
     
-    # Find and remove the account
     account_to_delete = None
     for account in accounts:
         if account.startswith(f"{username_to_delete}:"):
@@ -490,7 +494,6 @@ async def delete_account(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     
 async def clear_accounts(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Delete ALL available accounts"""
     if update.effective_user.id != ADMIN_ID:
         await update.message.reply_text("⛔ *Unauthorized!*", parse_mode="Markdown")
         return
@@ -505,7 +508,7 @@ async def clear_accounts(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     count = len(accounts)
-    save_accounts([])  # Save empty list
+    save_accounts([])
     
     await update.message.reply_text(
         f"🗑️ *Cleared {count} account(s)!*\n\n"
@@ -513,7 +516,6 @@ async def clear_accounts(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"⚠️ You can now add new accounts with `/ass`",
         parse_mode="Markdown"
     )
-
 
 async def reset_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
@@ -545,47 +547,14 @@ async def reset_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode="Markdown"
         )
 
-async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    keyboard = [
-        [
-            InlineKeyboardButton("🎰 Get Account", callback_data="get_account"),
-            InlineKeyboardButton("💬 Talk to Agent", callback_data="talk_agent")
-        ],
-        [
-            InlineKeyboardButton("📋 My Accounts", callback_data="my_accounts")
-        ]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    await update.message.reply_text(
-        "🤖 *Saudi 1xBet Bot Help*\n\n"
-        "📌 *User Commands:*\n"
-        "• Click 'Get Account' - Receive a free account\n"
-        "• Click 'My Accounts' - View your accounts\n"
-        "• Maximum *3 accounts per day*\n"
-        "• *30% CASHBACK* on all losses!\n\n"
-        "📊 *Admin Commands:*\n"
-        "• `/ass Username: user Password: pass` - Add account\n"
-        "• `/del Username: user` - Delete an account\n"
-        "• `/clearaccounts` - Delete ALL accounts ⚠️\n"
-        "• `/stats` - View bot statistics\n"
-        "• `/listaccounts` - View all accounts\n"
-        "• `/resetuser user_id` - Reset user\n\n"
-        "🔄 *Daily limit resets at midnight*",
-        parse_mode="Markdown",
-        reply_markup=reply_markup
-    )
-
 # ============================================
 # MAIN FUNCTION
 # ============================================
 
 def main():
-    # Build app
     app = Application.builder().token(BOT_TOKEN).build()
     
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CommandHandler("ass", add_account_command))
     app.add_handler(CommandHandler("add", add_account_command))
     app.add_handler(CommandHandler("stats", stats))
