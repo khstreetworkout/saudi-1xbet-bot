@@ -68,6 +68,48 @@ def get_user_accounts(user_id, used_data):
 # ============================================
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+
+    # Check if the user is a member of your channel
+    is_member = await is_user_member(user_id, "saudi_1xbet_accounts")
+
+    if not is_member:
+        # User is not a member. Show subscription prompt.
+        keyboard = [
+            [InlineKeyboardButton("📢 Join Our Channel", url="https://t.me/saudi_1xbet_accounts")],
+            [InlineKeyboardButton("✅ I've Joined! Check Subscription", callback_data="check_subscription")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await update.message.reply_text(
+            "👋 *Welcome!*\n\n"
+            "To use this bot, you must first join our channel:\n"
+            "➡️ [1xbet Saudi Arabia](https://t.me/saudi_1xbet_accounts)\n\n"
+            "After joining, click the button below to continue.",
+            parse_mode="Markdown",
+            reply_markup=reply_markup
+        )
+        return
+
+    # If user IS a member, show the main menu.
+    await show_main_menu(update, context)
+
+async def is_user_member(user_id, channel_username):
+    """Check if a user is a member of the channel."""
+    try:
+        # Get the chat member status for the user in your channel
+        # Note: The bot must be an admin in the channel for this to work reliably.
+        chat_member = await bot.get_chat_member(chat_id=f"@{channel_username}", user_id=user_id)
+        # Statuses that mean they are a member
+        if chat_member.status in ["member", "administrator", "creator"]:
+            return True
+        return False
+    except Exception as e:
+        # If there's an error (e.g., user not found), they are not a member.
+        print(f"Error checking membership: {e}")
+        return False
+
+async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Display the main menu with account options."""
     keyboard = [
         [
             InlineKeyboardButton("🎰 Get Account", callback_data="get_account"),
@@ -83,18 +125,29 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "🎰 *Welcome to Saudi 1xBet Bot!*\n\n"
         "💰 *Get 30% CASHBACK on all losses!*\n"
         "📌 You can get up to *3 accounts per day*\n\n"
-        "💡 Click the buttons below:\n\n"
-        "• *Get Account* - Receive a free 1xBet account\n"
-        "• *Talk to Agent* - Contact our support agent\n"
-        "• *My Accounts* - View all your accounts\n\n"
-        "🏆 Win big, lose less!",
+        "💡 Click the buttons below:",
         parse_mode="Markdown",
         reply_markup=reply_markup
     )
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    
+    await query.answer()
+
+    if query.data == "check_subscription":
+        user_id = query.from_user.id
+        is_member = await is_user_member(user_id, "saudi_1xbet_accounts")
+        if is_member:
+            await query.edit_message_text("✅ Subscription verified! Welcome!")
+            # Show the main menu
+            await show_main_menu(update, context)
+        else:
+            await query.edit_message_text(
+                "❌ *Not a member yet!*\n\n"
+                "Please join [our channel](https://t.me/saudi_1xbet_accounts) first, then click 'Check Subscription' again.",
+                parse_mode="Markdown"
+            )
+        return
     # Answer the callback query to stop loading animation
     try:
         await query.answer()
