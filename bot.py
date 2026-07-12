@@ -171,9 +171,9 @@ async def handle_get_account(query, user_id, used_data):
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     # Format the account nicely
-    account_parts = account.split(":", 1)
-    if len(account_parts) == 2:
-        username, password = account_parts
+    parts = account.split(":", 1)
+    if len(parts) == 2:
+        username, password = parts
         account_display = f"*Username:* `{username}`\n*Password:* `{password}`"
     else:
         account_display = f"`{account}`"
