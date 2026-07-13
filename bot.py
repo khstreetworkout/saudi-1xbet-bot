@@ -826,10 +826,11 @@ async def handle_video_buttons(update: Update, context: ContextTypes.DEFAULT_TYP
                 # Get video file ID
                 if update.message.video:
                     file_id = update.message.video.file_id
+                    print(f"🎬 Video file_id: {file_id[:20]}...")  # ✅ DEBUG
                 else:
-                    # Check if document is a video
                     if update.message.document.mime_type and update.message.document.mime_type.startswith('video/'):
                         file_id = update.message.document.file_id
+                        print(f"📄 Document file_id: {file_id[:20]}...")  # ✅ DEBUG
                     else:
                         await update.message.reply_text(
                             "❌ *Please send a video file!*\n\n"
