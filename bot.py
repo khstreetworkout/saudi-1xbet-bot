@@ -625,6 +625,10 @@ async def show_video_tutorials(update: Update, context: ContextTypes.DEFAULT_TYP
     """Show video tutorials menu"""
     user_id = update.effective_user.id
     videos = load_videos()
+
+    # ✅ ADD DEBUG
+    print(f"📹 Loading videos... Found: {len(videos)}")
+    print(f"📁 Videos: {videos}")
     
     # ⭐ CHECK IF USER IS ADMIN FIRST
     if user_id == ADMIN_ID:
@@ -885,6 +889,11 @@ async def handle_video_buttons(update: Update, context: ContextTypes.DEFAULT_TYP
                 "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             }
             save_videos(videos)
+            
+            # ✅ ADD THESE DEBUG LINES
+            print(f"✅ Video saved! ID: {video_id}")
+            print(f"📹 Total videos: {len(videos)}")
+            print(f"📁 Videos data: {videos}")
             
             admin_states.pop(user_id, None)
             
