@@ -129,6 +129,209 @@ WITHDRAW_METHODS = {
 }
 
 # ============================================
+# PAYMENT METHODS MANAGEMENT (ADMIN ONLY)
+# ============================================
+
+PAYMENT_METHODS_FILE = os.path.join(DATA_DIR, "payment_methods.json")
+
+def load_payment_methods():
+    if os.path.exists(PAYMENT_METHODS_FILE):
+        with open(PAYMENT_METHODS_FILE, 'r') as f:
+            return json.load(f)
+    # Default methods if file doesn't exist
+    return {
+        "barq": {
+            "name": "💳 Barq Wallet",
+            "fields": ["phone_number"],
+            "details": "📱 Transfer to: 05XXXXXXXX"
+        },
+        "bank_transfer": {
+            "name": "🏦 Bank Transfer",
+            "fields": ["phone_number", "iban"],
+            "details": "🏦 IBAN: SA1234567890\n📱 Phone: 05XXXXXXXX"
+        },
+        "stc_pay": {
+            "name": "📱 STC Pay",
+            "fields": ["phone_number"],
+            "details": "📱 Transfer to: 05XXXXXXXX"
+        },
+        "urpay": {
+            "name": "💳 UrPay",
+            "fields": ["phone_number", "wallet_address"],
+            "details": "📱 Phone: 05XXXXXXXX\n🔗 Wallet: example@urpay.com"
+        }
+    }
+
+def save_payment_methods(methods):
+    with open(PAYMENT_METHODS_FILE, 'w') as f:
+        json.dump(methods, f, indent=2)
+
+async def manage_payment_methods(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Admin command to manage payment methods"""
+    if update.effective_user.id != ADMIN_ID:
+        await update.message.reply_text("⛔ *Unauthorized!*", parse_mode="Markdown")
+        return
+    
+    if not context.args:
+        keyboard = [
+            ["📋 List Methods", "➕ Add Method"],
+            ["✏️ Edit Method", "🗑️ Delete Method"],
+            ["🔙 Back to Menu"]
+        ]
+        reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+        await update.message.reply_text(
+            "📋 *Payment Methods Management*\n\n"
+            "Select an option below:\n\n"
+            "📋 *List Methods* - View all payment methods\n"
+            "➕ *Add Method* - Add a new payment method\n"
+            "✏️ *Edit Method* - Edit an existing method\n"
+            "🗑️ *Delete Method* - Remove a method",
+            parse_mode="Markdown",
+            reply_markup=reply_markup
+        )
+        return
+    
+    action = context.args[0].lower()
+    
+    if action == "list":
+        methods = load_payment_methods()
+        if not methods:
+            await update.message.reply_text("📭 *No payment methods available.*", parse_mode="Markdown")
+            return
+        
+        text = "📋 *Payment Methods*\n\n"
+        for key, method in methods.items():
+            text += f"🔹 *{method['name']}*\n"
+            text += f"   📌 ID: `{key}`\n"
+            text += f"   📋 Details: {method['details']}\n"
+            text += f"   📝 Fields: {', '.join(method['fields'])}\n\n"
+        
+        await update.message.reply_text(text, parse_mode="Markdown")
+        return
+    
+    elif action == "add":
+        # Format: /pm add key "Name" "details" field1,field2
+        if len(context.args) < 4:
+            await update.message.reply_text(
+                "📝 *How to add a payment method:*\n\n"
+                "`/pm add method_key \"Method Name\" \"Details\" field1,field2`\n\n"
+                "**Example:**\n"
+                "`/pm add newpay \"💰 NewPay\" \"📱 Phone: 05XXXXXXXX\" phone_number`\n"
+                "`/pm add newpay \"💰 NewPay\" \"📱 Phone: 05XXXXXXXX\\n🏦 IBAN: SA123\" phone_number,iban`",
+                parse_mode="Markdown"
+            )
+            return
+        
+        key = context.args[1]
+        # Parse quoted strings
+        args_str = " ".join(context.args[2:])
+        parts = re.findall(r'"([^"]*)"', args_str)
+        
+        if len(parts) < 2:
+            await update.message.reply_text("❌ *Invalid format!* Use quotes for name and details.", parse_mode="Markdown")
+            return
+        
+        name = parts[0]
+        details = parts[1]
+        
+        # Get fields (remaining text after quoted parts)
+        remaining = args_str
+        for p in parts:
+            remaining = remaining.replace(f'"{p}"', "", 1)
+        fields = [f.strip() for f in remaining.replace(",", " ").split() if f.strip()]
+        
+        if not fields:
+            fields = ["phone_number"]
+        
+        methods = load_payment_methods()
+        methods[key] = {
+            "name": name,
+            "fields": fields,
+            "details": details
+        }
+        save_payment_methods(methods)
+        
+        await update.message.reply_text(
+            f"✅ *Payment Method Added!*\n\n"
+            f"🔹 Name: {name}\n"
+            f"📌 ID: `{key}`\n"
+            f"📋 Details: {details}\n"
+            f"📝 Fields: {', '.join(fields)}",
+            parse_mode="Markdown"
+        )
+        return
+    
+    elif action == "delete":
+        if len(context.args) < 2:
+            await update.message.reply_text(
+                "📝 *How to delete a method:*\n\n"
+                "`/pm delete method_key`\n\n"
+                "**Example:**\n"
+                "`/pm delete barq`",
+                parse_mode="Markdown"
+            )
+            return
+        
+        key = context.args[1]
+        methods = load_payment_methods()
+        
+        if key not in methods:
+            await update.message.reply_text(f"❌ *Method `{key}` not found!*", parse_mode="Markdown")
+            return
+        
+        del methods[key]
+        save_payment_methods(methods)
+        await update.message.reply_text(f"✅ *Method `{key}` deleted!*", parse_mode="Markdown")
+        return
+    
+    elif action == "edit":
+        if len(context.args) < 3:
+            await update.message.reply_text(
+                "📝 *How to edit a method:*\n\n"
+                "`/pm edit method_key field_name \"new value\"`\n\n"
+                "**Example:**\n"
+                "`/pm edit barq name \"💳 New Barq\"`\n"
+                "`/pm edit barq details \"📱 New Phone: 05XXXXXXXX\"`",
+                parse_mode="Markdown"
+            )
+            return
+        
+        key = context.args[1]
+        field = context.args[2].lower()
+        
+        # Get the value (everything after field name)
+        value = " ".join(context.args[3:]).strip('"')
+        
+        methods = load_payment_methods()
+        
+        if key not in methods:
+            await update.message.reply_text(f"❌ *Method `{key}` not found!*", parse_mode="Markdown")
+            return
+        
+        if field in methods[key]:
+            methods[key][field] = value
+            save_payment_methods(methods)
+            await update.message.reply_text(
+                f"✅ *Method `{key}` updated!*\n\n"
+                f"📝 {field}: {value}",
+                parse_mode="Markdown"
+            )
+        else:
+            await update.message.reply_text(
+                f"❌ *Field `{field}` not found!*\n\n"
+                f"Available fields: {', '.join(methods[key].keys())}",
+                parse_mode="Markdown"
+            )
+        return
+    
+    else:
+        await update.message.reply_text(
+            "❌ *Unknown action!*\n\n"
+            "Available actions: `list`, `add`, `edit`, `delete`",
+            parse_mode="Markdown"
+        )
+
+# ============================================
 # TASKS FOR STREAK CHALLENGE
 # ============================================
 TASKS = {
@@ -218,6 +421,7 @@ def get_deposit_withdraw_keyboard():
         ["🔙 Back to Menu"]
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+
 
 # ============================================
 # MAIN BOT COMMANDS
@@ -779,7 +983,18 @@ async def claim_vip_reward(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ============================================
 
 async def show_deposit_withdraw_menu(update, context):
-    """Show deposit and withdraw options"""
+    """Show deposit and withdraw options with available methods"""
+    payment_methods = load_payment_methods()
+    
+    text = "💳 *Deposit & Withdrawal*\n\n"
+    text += "💰 *Available Payment Methods:*\n"
+    
+    for key, method in payment_methods.items():
+        text += f"• {method['name']}\n"
+        text += f"  {method['details']}\n\n"
+    
+    text += "👆 *Select an option below:*"
+    
     keyboard = [
         ["💰 Deposit", "💸 Withdraw"],
         ["🔙 Back to Menu"]
@@ -787,10 +1002,7 @@ async def show_deposit_withdraw_menu(update, context):
     reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
     
     await update.message.reply_text(
-        "💳 *Deposit & Withdrawal*\n\n"
-        "💰 *Deposit* - Add funds to your 1xBet account\n"
-        "💸 *Withdraw* - Withdraw your winnings\n\n"
-        "Select an option below:",
+        text,
         parse_mode="Markdown",
         reply_markup=reply_markup
     )
@@ -827,8 +1039,10 @@ async def process_deposit_player_id(update: Update, context: ContextTypes.DEFAUL
     user_states[user_id]["player_id"] = player_id
     user_states[user_id]["step"] = "method"
     
+    # Show payment methods
+    payment_methods = load_payment_methods()
     keyboard = []
-    for key, method in PAYMENT_METHODS.items():
+    for key, method in payment_methods.items():
         keyboard.append([KeyboardButton(method["name"])])
     keyboard.append([KeyboardButton("🔙 Back to Menu")])
     reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
@@ -847,8 +1061,12 @@ async def process_deposit_method(update: Update, context: ContextTypes.DEFAULT_T
     user_id = str(update.effective_user.id)
     method_name = update.message.text
     
+    # Load payment methods from file
+    payment_methods = load_payment_methods()
+    
+    # Find the method key
     method_key = None
-    for key, method in PAYMENT_METHODS.items():
+    for key, method in payment_methods.items():
         if method["name"] == method_name:
             method_key = key
             break
@@ -872,7 +1090,7 @@ async def process_deposit_method(update: Update, context: ContextTypes.DEFAULT_T
     ]
     reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
     
-    method_details = PAYMENT_METHODS[method_key]["details"]
+    method_details = payment_methods[method_key]["details"]
     
     await update.message.reply_text(
         f"💰 *Deposit Process*\n\n"
@@ -998,7 +1216,7 @@ async def handle_receipt(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await notify_accountant_deposit(update, context, deposit_id, deposits[deposit_id])
 
 async def notify_accountant_deposit(update, context, deposit_id, deposit_data):
-    """Send deposit request to accountant"""
+    """Send deposit request to accountant with photo"""
     method_name = PAYMENT_METHODS[deposit_data["method"]]["name"]
     
     keyboard = [
@@ -1020,12 +1238,30 @@ async def notify_accountant_deposit(update, context, deposit_id, deposit_data):
         f"Please verify the transfer and respond:"
     )
     
+    # Send the message with buttons
     await context.bot.send_message(
         chat_id=ACCOUNTANT_ID,
         text=message,
         parse_mode="Markdown",
         reply_markup=reply_markup
     )
+    
+    # Send the receipt photo separately
+    if os.path.exists(deposit_data['receipt']):
+        with open(deposit_data['receipt'], 'rb') as photo:
+            await context.bot.send_photo(
+                chat_id=ACCOUNTANT_ID,
+                photo=photo,
+                caption=f"📸 *Receipt for Deposit {deposit_id}*",
+                parse_mode="Markdown"
+            )
+    else:
+        await context.bot.send_message(
+            chat_id=ACCOUNTANT_ID,
+            text=f"⚠️ *Receipt photo not found!*\nFile path: {deposit_data['receipt']}",
+            parse_mode="Markdown"
+        )
+
 
 # --- Withdraw Flow ---
 
@@ -1590,6 +1826,7 @@ def main():
     app.add_handler(CommandHandler("resetuser", reset_user))
     app.add_handler(CommandHandler("del", delete_account))
     app.add_handler(CommandHandler("clearaccounts", clear_accounts))
+    app.add_handler(CommandHandler("pm", manage_payment_methods))
     
     # Handle inline button callbacks
     app.add_handler(CallbackQueryHandler(button_handler))
