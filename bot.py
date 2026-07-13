@@ -410,6 +410,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # ============================================
     # VIDEO TUTORIALS
     # ============================================
+
+    # Handle add video state (must be checked BEFORE other handlers)
+    if user_id in admin_states and admin_states[user_id].get("action") == "add_video":
+        await handle_video_buttons(update, context)
+        return
     
     # Handle Video Tutorials
     if message_text == "📹 Video Tutorials":
@@ -669,6 +674,7 @@ async def handle_video_buttons(update: Update, context: ContextTypes.DEFAULT_TYP
     
     # Handle Back to Menu
     if message_text == "🔙 Back to Menu":
+        admin_states.pop(user_id, None)
         await show_main_menu(update, context)
         return
     
@@ -678,17 +684,15 @@ async def handle_video_buttons(update: Update, context: ContextTypes.DEFAULT_TYP
             await update.message.reply_text("⛔ *Unauthorized!*", parse_mode="Markdown")
             return
         
+        admin_states[user_id] = {"action": "add_video", "step": "waiting_for_video"}
         await update.message.reply_text(
             "📹 *Add Video Tutorial*\n\n"
-            "Send me the video file and a title.\n\n"
-            "📝 *Instructions:*\n"
-            "1. First, send the video (as a file or video)\n"
-            "2. Then send the title for this video\n\n"
+            "📤 *Step 1/2:* Send me the video file\n\n"
+            "Send a video file or video message.\n\n"
             "Type /cancel to cancel.",
             parse_mode="Markdown",
             reply_markup=get_back_to_menu_keyboard()
         )
-        admin_states[user_id] = {"action": "add_video", "step": "waiting_for_video"}
         return
     
     # Admin: Delete Video
@@ -802,11 +806,16 @@ async def handle_video_buttons(update: Update, context: ContextTypes.DEFAULT_TYP
         )
         return
     
+    # ============================================
+    # ADD VIDEO STATE HANDLING
+    # ============================================
+    
     # If we're in add video state
     if user_id in admin_states and admin_states[user_id].get("action") == "add_video":
         state = admin_states[user_id]
         step = state.get("step")
         
+        # STEP 1: Waiting for video file
         if step == "waiting_for_video":
             # Check if it's a video
             if update.message.video or update.message.document:
@@ -814,26 +823,38 @@ async def handle_video_buttons(update: Update, context: ContextTypes.DEFAULT_TYP
                 if update.message.video:
                     file_id = update.message.video.file_id
                 else:
-                    file_id = update.message.document.file_id
+                    # Check if document is a video
+                    if update.message.document.mime_type and update.message.document.mime_type.startswith('video/'):
+                        file_id = update.message.document.file_id
+                    else:
+                        await update.message.reply_text(
+                            "❌ *Please send a video file!*\n\n"
+                            "The file you sent doesn't appear to be a video.",
+                            parse_mode="Markdown"
+                        )
+                        return
                 
                 state["file_id"] = file_id
                 state["step"] = "waiting_for_title"
                 
                 await update.message.reply_text(
                     "✅ *Video Received!*\n\n"
-                    "Now send me the title for this video:\n"
-                    "📝 Example: `How to Deposit` or `Deposit Tutorial`",
+                    "📝 *Step 2/2:* Send me the title for this video\n\n"
+                    "📌 Example: `How to Deposit` or `Deposit Tutorial`\n\n"
+                    "Type /cancel to cancel.",
                     parse_mode="Markdown",
                     reply_markup=get_back_to_menu_keyboard()
                 )
             else:
                 await update.message.reply_text(
                     "❌ *Please send a video!*\n\n"
-                    "Send a video file or video message.",
+                    "Send a video file or video message.\n\n"
+                    "Type /cancel to cancel.",
                     parse_mode="Markdown"
                 )
             return
         
+        # STEP 2: Waiting for title
         elif step == "waiting_for_title":
             title = message_text.strip()
             
@@ -844,6 +865,16 @@ async def handle_video_buttons(update: Update, context: ContextTypes.DEFAULT_TYP
                     parse_mode="Markdown"
                 )
                 return
+            
+            # Check if title already exists
+            for video_id, video_data in videos.items():
+                if video_data['title'].lower() == title.lower():
+                    await update.message.reply_text(
+                        f"❌ *A video with title '{title}' already exists!*\n\n"
+                        "Please use a different title.",
+                        parse_mode="Markdown"
+                    )
+                    return
             
             # Save the video
             videos = load_videos()
@@ -857,13 +888,14 @@ async def handle_video_buttons(update: Update, context: ContextTypes.DEFAULT_TYP
             
             admin_states.pop(user_id, None)
             
-            # ✅ SHOW ADMIN PANEL AGAIN
+            # Show admin panel again
             keyboard = get_admin_video_keyboard()
             await update.message.reply_text(
-                f"✅ *Video Added!*\n\n"
-                f"🎬 Title: {title}\n"
-                f"🆔 ID: `{video_id}`\n\n"
-                f"📹 Total Videos: {len(videos)}\n\n"
+                f"✅ *Video Added Successfully!*\n\n"
+                f"🎬 *Title:* {title}\n"
+                f"🆔 *ID:* `{video_id}`\n"
+                f"📅 *Added:* {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+                f"📹 *Total Videos:* {len(videos)}\n\n"
                 "📹 *Video Tutorials - Admin Panel*\n\n"
                 "📹 *Add Video* - Add a new video tutorial\n"
                 "🗑️ *Delete Video* - Remove a video\n"
@@ -873,7 +905,6 @@ async def handle_video_buttons(update: Update, context: ContextTypes.DEFAULT_TYP
                 reply_markup=keyboard
             )
             return
-
 # ============================================
 # DEPOSIT & WITHDRAW SYSTEM
 # ============================================
