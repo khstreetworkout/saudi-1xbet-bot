@@ -275,7 +275,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     await update.message.chat.send_action(action="typing")
 
-     if await process_rejection_reason(update, context):
+    # ⭐ CHECK FOR REJECTION REASON FIRST
+    if await process_rejection_reason(update, context):
         return
     
     if update.message.photo:
@@ -1000,8 +1001,6 @@ async def handle_accountant_action(update: Update, context: ContextTypes.DEFAULT
 
 async def process_rejection_reason(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Process rejection reason from accountant. Returns True if handled."""
-    
-    # Check if this is a rejection response
     if "reject_deposit" in context.user_data:
         request_id = context.user_data.pop("reject_deposit")
         deposits = load_deposits()
@@ -1025,7 +1024,7 @@ async def process_rejection_reason(update: Update, context: ContextTypes.DEFAULT
                 parse_mode="Markdown",
                 reply_markup=get_pm_menu_keyboard() if update.effective_user.id == ADMIN_ID else get_main_menu_keyboard()
             )
-            return True  # ✅ Handled
+            return True
     
     if "reject_withdraw" in context.user_data:
         request_id = context.user_data.pop("reject_withdraw")
@@ -1049,9 +1048,9 @@ async def process_rejection_reason(update: Update, context: ContextTypes.DEFAULT
                 parse_mode="Markdown",
                 reply_markup=get_pm_menu_keyboard() if update.effective_user.id == ADMIN_ID else get_main_menu_keyboard()
             )
-            return True  # ✅ Handled
+            return True
     
-    return False  # ❌ Not handled - continue to other handlers
+    return False
 # ============================================
 # PAYMENT METHODS MANAGEMENT (BUTTON-BASED)
 # ============================================
