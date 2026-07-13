@@ -274,6 +274,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     used_data = load_used()
     
     await update.message.chat.send_action(action="typing")
+
+     if await process_rejection_reason(update, context):
+        return
     
     if update.message.photo:
         await handle_receipt(update, context)
