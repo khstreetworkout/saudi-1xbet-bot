@@ -886,6 +886,9 @@ async def process_withdraw_code(update: Update, context: ContextTypes.DEFAULT_TY
         reply_markup=get_back_to_menu_keyboard()
     )
     
+    # Debug print to confirm it's being called
+    print(f"📤 Calling notify_accountant_withdraw for ID: {withdraw_id}")
+    
     await notify_accountant_withdraw(update, context, withdraw_id, withdrawals[withdraw_id])
 
 async def notify_accountant_withdraw(update, context, withdraw_id, withdraw_data):
@@ -913,6 +916,8 @@ async def notify_accountant_withdraw(update, context, withdraw_id, withdraw_data
             f"Please verify and respond:"
         )
         
+        print(f"📤 Attempting to send withdrawal to ACCOUNTANT_ID: {ACCOUNTANT_ID}")
+        
         await context.bot.send_message(
             chat_id=ACCOUNTANT_ID,
             text=message,
@@ -920,6 +925,7 @@ async def notify_accountant_withdraw(update, context, withdraw_id, withdraw_data
             reply_markup=reply_markup
         )
         print(f"✅ Withdrawal notification sent for ID: {withdraw_id}")
+        
     except Exception as e:
         print(f"❌ Error sending withdrawal notification: {e}")
         import traceback
