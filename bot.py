@@ -621,6 +621,23 @@ async def show_video_tutorials(update: Update, context: ContextTypes.DEFAULT_TYP
     user_id = update.effective_user.id
     videos = load_videos()
     
+    # ⭐ CHECK IF USER IS ADMIN FIRST
+    if user_id == ADMIN_ID:
+        keyboard = get_admin_video_keyboard()
+        video_count = len(videos)
+        await update.message.reply_text(
+            "📹 *Video Tutorials - Admin Panel*\n\n"
+            f"📊 Total Videos: {video_count}\n\n"
+            "📹 *Add Video* - Add a new video tutorial\n"
+            "🗑️ *Delete Video* - Remove a video\n"
+            "📋 *List Videos* - View all videos\n\n"
+            "👆 Select an option below:",
+            parse_mode="Markdown",
+            reply_markup=keyboard
+        )
+        return
+    
+    # If not admin, check if videos exist
     if not videos:
         await update.message.reply_text(
             "📹 *No Videos Available*\n\n"
@@ -631,32 +648,18 @@ async def show_video_tutorials(update: Update, context: ContextTypes.DEFAULT_TYP
         )
         return
     
-    # Check if user is admin - show admin menu
-    if user_id == ADMIN_ID:
-        keyboard = get_admin_video_keyboard()
-        await update.message.reply_text(
-            "📹 *Video Tutorials - Admin Panel*\n\n"
-            f"📊 Total Videos: {len(videos)}\n\n"
-            "📹 *Add Video* - Add a new video tutorial\n"
-            "🗑️ *Delete Video* - Remove a video\n"
-            "📋 *List Videos* - View all videos\n\n"
-            "👆 Select an option below:",
-            parse_mode="Markdown",
-            reply_markup=keyboard
-        )
-    else:
-        # User view - show video list
-        keyboard = get_video_menu_keyboard(videos)
-        text = "📹 *Video Tutorials*\n\n"
-        for video_id, video_data in videos.items():
-            text += f"🎬 {video_data['title']}\n"
-        text += "\n👆 Click a video to watch:"
-        
-        await update.message.reply_text(
-            text,
-            parse_mode="Markdown",
-            reply_markup=keyboard
-        )
+    # User view - show video list
+    keyboard = get_video_menu_keyboard(videos)
+    text = "📹 *Video Tutorials*\n\n"
+    for video_id, video_data in videos.items():
+        text += f"🎬 {video_data['title']}\n"
+    text += "\n👆 Click a video to watch:"
+    
+    await update.message.reply_text(
+        text,
+        parse_mode="Markdown",
+        reply_markup=keyboard
+    )
 
 async def handle_video_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle video menu buttons"""
