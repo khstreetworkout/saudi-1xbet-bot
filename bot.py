@@ -959,6 +959,7 @@ async def handle_accountant_action(update: Update, context: ContextTypes.DEFAULT
             
             await query.edit_message_text("✅ Deposit accepted!")
         else:
+            # ⭐ Store the request ID for rejection reason
             context.user_data["reject_deposit"] = request_id
             await query.edit_message_text(
                 f"❌ *Reject Deposit*\n\n"
@@ -988,6 +989,7 @@ async def handle_accountant_action(update: Update, context: ContextTypes.DEFAULT
             
             await query.edit_message_text("✅ Withdrawal accepted!")
         else:
+            # ⭐ Store the request ID for rejection reason
             context.user_data["reject_withdraw"] = request_id
             await query.edit_message_text(
                 f"❌ *Reject Withdrawal*\n\n"
@@ -997,6 +999,9 @@ async def handle_accountant_action(update: Update, context: ContextTypes.DEFAULT
             )
 
 async def process_rejection_reason(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Process rejection reason from accountant. Returns True if handled."""
+    
+    # Check if this is a rejection response
     if "reject_deposit" in context.user_data:
         request_id = context.user_data.pop("reject_deposit")
         deposits = load_deposits()
@@ -1015,8 +1020,12 @@ async def process_rejection_reason(update: Update, context: ContextTypes.DEFAULT
                 parse_mode="Markdown"
             )
             
-            await update.message.reply_text("✅ Rejection reason sent to user.")
-            return
+            await update.message.reply_text(
+                "✅ *Rejection reason sent to user.*",
+                parse_mode="Markdown",
+                reply_markup=get_pm_menu_keyboard() if update.effective_user.id == ADMIN_ID else get_main_menu_keyboard()
+            )
+            return True  # ✅ Handled
     
     if "reject_withdraw" in context.user_data:
         request_id = context.user_data.pop("reject_withdraw")
@@ -1035,9 +1044,14 @@ async def process_rejection_reason(update: Update, context: ContextTypes.DEFAULT
                 parse_mode="Markdown"
             )
             
-            await update.message.reply_text("✅ Rejection reason sent to user.")
-            return
-
+            await update.message.reply_text(
+                "✅ *Rejection reason sent to user.*",
+                parse_mode="Markdown",
+                reply_markup=get_pm_menu_keyboard() if update.effective_user.id == ADMIN_ID else get_main_menu_keyboard()
+            )
+            return True  # ✅ Handled
+    
+    return False  # ❌ Not handled - continue to other handlers
 # ============================================
 # PAYMENT METHODS MANAGEMENT (BUTTON-BASED)
 # ============================================
@@ -1690,7 +1704,6 @@ def main():
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     app.add_handler(MessageHandler(filters.PHOTO, handle_message))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, process_rejection_reason))
     
     print("=" * 50)
     print("🤖 Saudi 1xBet Bot is RUNNING!")
