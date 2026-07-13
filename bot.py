@@ -334,12 +334,13 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
-    message_text = update.message.text if update.message.text else ""
     used_data = load_used()
     
     await update.message.chat.send_action(action="typing")
 
+    # ============================================
     # CHECK FOR REJECTION REASON FIRST
+    # ============================================
     if await process_rejection_reason(update, context):
         return
     
@@ -347,21 +348,35 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # VIDEO TUTORIALS - Check state FIRST (BEFORE ANYTHING ELSE!)
     # ============================================
     
-    # Handle add video state - this must be checked before ANY other handler
+    # 🔥 CRITICAL: If user is in add_video state, handle it immediately
     if user_id in admin_states and admin_states[user_id].get("action") == "add_video":
+        print(f"📹 User in add_video state, forwarding to handle_video_buttons")
         await handle_video_buttons(update, context)
         return
     
+    # ============================================
+    # HANDLE PHOTO (RECEIPT)
+    # ============================================
     if update.message.photo:
         await handle_receipt(update, context)
         return
     
+    # ============================================
+    # GET MESSAGE TEXT
+    # ============================================
+    message_text = update.message.text if update.message.text else ""
+    
+    # ============================================
+    # BACK TO MENU
+    # ============================================
     if message_text == "🔙 Back to Menu":
         admin_states.pop(user_id, None)
         await show_main_menu(update, context)
         return
     
-    # Handle Payment Methods Management (Admin only)
+    # ============================================
+    # PAYMENT METHODS MANAGEMENT (ADMIN ONLY)
+    # ============================================
     if update.effective_user.id == ADMIN_ID:
         if user_id in admin_states:
             await handle_pm_state(update, context)
@@ -372,7 +387,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
     
     # ============================================
-    # 🆕 ADMIN COMMANDS FROM BUTTONS
+    # ADMIN COMMANDS FROM BUTTONS
     # ============================================
     
     # Handle /ass button
