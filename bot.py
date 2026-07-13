@@ -705,11 +705,12 @@ async def notify_accountant_deposit(update, context, deposit_id, deposit_data):
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
+    # ⭐ FIX: Remove parse_mode to avoid formatting errors
     message = (
-        f"💰 *New Deposit Request*\n\n"
-        f"🆔 ID: `{deposit_id}`\n"
+        f"💰 New Deposit Request\n\n"
+        f"🆔 ID: {deposit_id}\n"
         f"👤 User: @{deposit_data['username']}\n"
-        f"🆔 Player ID: `{deposit_data['player_id']}`\n"
+        f"🆔 Player ID: {deposit_data['player_id']}\n"
         f"💳 Method: {method_name}\n"
         f"💵 Amount: {deposit_data['amount']} SAR\n"
         f"📅 Time: {deposit_data['created_at']}\n\n"
@@ -719,7 +720,6 @@ async def notify_accountant_deposit(update, context, deposit_id, deposit_data):
     await context.bot.send_message(
         chat_id=ACCOUNTANT_ID,
         text=message,
-        parse_mode="Markdown",
         reply_markup=reply_markup
     )
     
@@ -728,16 +728,13 @@ async def notify_accountant_deposit(update, context, deposit_id, deposit_data):
             await context.bot.send_photo(
                 chat_id=ACCOUNTANT_ID,
                 photo=photo,
-                caption=f"📸 *Receipt for Deposit {deposit_id}*",
-                parse_mode="Markdown"
+                caption=f"📸 Receipt for Deposit {deposit_id}"
             )
     else:
         await context.bot.send_message(
             chat_id=ACCOUNTANT_ID,
-            text=f"⚠️ *Receipt photo not found!*\nFile path: {deposit_data['receipt']}",
-            parse_mode="Markdown"
+            text=f"⚠️ Receipt photo not found!\nFile path: {deposit_data['receipt']}"
         )
-
 # --- Withdraw Flow ---
 
 async def start_withdraw(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -905,23 +902,24 @@ async def notify_accountant_withdraw(update, context, withdraw_id, withdraw_data
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
+        # ⭐ FIX: Use parse_mode=None to avoid Markdown errors, or escape special characters
         message = (
             f"💸 *New Withdrawal Request*\n\n"
-            f"🆔 ID: `{withdraw_id}`\n"
+            f"🆔 ID: {withdraw_id}\n"
             f"👤 User: @{withdraw_data['username']}\n"
             f"💳 Method: {method_name}\n"
             f"📋 Details:\n{details_text}\n"
-            f"🔑 Withdrawal Code: `{withdraw_data['code']}`\n"
+            f"🔑 Withdrawal Code: {withdraw_data['code']}\n"
             f"📅 Time: {withdraw_data['created_at']}\n\n"
             f"Please verify and respond:"
         )
         
         print(f"📤 Attempting to send withdrawal to ACCOUNTANT_ID: {ACCOUNTANT_ID}")
         
+        # ⭐ FIX: Remove parse_mode to avoid formatting errors
         await context.bot.send_message(
             chat_id=ACCOUNTANT_ID,
             text=message,
-            parse_mode="Markdown",
             reply_markup=reply_markup
         )
         print(f"✅ Withdrawal notification sent for ID: {withdraw_id}")
