@@ -687,11 +687,15 @@ async def show_video_tutorials(update: Update, context: ContextTypes.DEFAULT_TYP
 async def handle_video_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle video menu buttons"""
     user_id = str(update.effective_user.id)
-    message_text = update.message.text
+    message_text = update.message.text if update.message.text else ""
     videos = load_videos()
     
-    print(f"🔍 handle_video_buttons called with: {message_text}")
-    print(f"🔍 user_id: {user_id}, admin_states: {admin_states}")
+    print(f"🔍 handle_video_buttons called")
+    print(f"🔍 user_id: {user_id}")
+    print(f"🔍 message_text: {message_text}")
+    print(f"🔍 has video: {update.message.video is not None}")
+    print(f"🔍 has document: {update.message.document is not None}")
+    print(f"🔍 admin_states: {admin_states}")
     
     # Handle Back to Menu
     if message_text == "🔙 Back to Menu":
