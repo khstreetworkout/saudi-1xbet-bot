@@ -748,11 +748,20 @@ async def handle_video_buttons(update: Update, context: ContextTypes.DEFAULT_TYP
                     del videos[video_id]
                     save_videos(videos)
                     admin_states.pop(user_id, None)
+                    
+                    # Show admin panel again
+                    keyboard = get_admin_video_keyboard()
                     await update.message.reply_text(
                         f"✅ *Video Deleted!*\n\n"
-                        f"Removed: {title_to_delete}",
+                        f"Removed: {title_to_delete}\n\n"
+                        f"📹 *Video Tutorials - Admin Panel*\n\n"
+                        f"📊 Total Videos: {len(videos)}\n\n"
+                        "📹 *Add Video* - Add a new video tutorial\n"
+                        "🗑️ *Delete Video* - Remove a video\n"
+                        "📋 *List Videos* - View all videos\n\n"
+                        "👆 Select an option below:",
                         parse_mode="Markdown",
-                        reply_markup=get_admin_video_keyboard()
+                        reply_markup=keyboard
                     )
                     return
             
@@ -848,13 +857,20 @@ async def handle_video_buttons(update: Update, context: ContextTypes.DEFAULT_TYP
             
             admin_states.pop(user_id, None)
             
+            # ✅ SHOW ADMIN PANEL AGAIN
+            keyboard = get_admin_video_keyboard()
             await update.message.reply_text(
                 f"✅ *Video Added!*\n\n"
                 f"🎬 Title: {title}\n"
                 f"🆔 ID: `{video_id}`\n\n"
-                f"📹 Total Videos: {len(videos)}",
+                f"📹 Total Videos: {len(videos)}\n\n"
+                "📹 *Video Tutorials - Admin Panel*\n\n"
+                "📹 *Add Video* - Add a new video tutorial\n"
+                "🗑️ *Delete Video* - Remove a video\n"
+                "📋 *List Videos* - View all videos\n\n"
+                "👆 Select an option below:",
                 parse_mode="Markdown",
-                reply_markup=get_admin_video_keyboard()
+                reply_markup=keyboard
             )
             return
 
