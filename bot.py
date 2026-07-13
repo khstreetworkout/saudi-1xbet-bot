@@ -343,6 +343,15 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if await process_rejection_reason(update, context):
         return
     
+    # ============================================
+    # VIDEO TUTORIALS - Check state FIRST
+    # ============================================
+    
+    # Handle add video state (must be checked BEFORE anything else)
+    if user_id in admin_states and admin_states[user_id].get("action") == "add_video":
+        await handle_video_buttons(update, context)
+        return
+    
     if update.message.photo:
         await handle_receipt(update, context)
         return
@@ -410,11 +419,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # ============================================
     # VIDEO TUTORIALS
     # ============================================
-
-    # Handle add video state (must be checked BEFORE other handlers)
-    if user_id in admin_states and admin_states[user_id].get("action") == "add_video":
-        await handle_video_buttons(update, context)
-        return
     
     # Handle Video Tutorials
     if message_text == "📹 Video Tutorials":
@@ -427,11 +431,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     if message_text.startswith("🎬 ") or message_text.startswith("🗑️ "):
-        await handle_video_buttons(update, context)
-        return
-    
-    # Handle add video state
-    if user_id in admin_states and admin_states[user_id].get("action") == "add_video":
         await handle_video_buttons(update, context)
         return
     
@@ -694,7 +693,7 @@ async def handle_video_buttons(update: Update, context: ContextTypes.DEFAULT_TYP
         
         print("📹 Admin clicked Add Video")
         
-        # ✅ Set the state
+        # Set the state
         admin_states[str(user_id)] = {"action": "add_video", "step": "waiting_for_video"}
         print(f"📹 State set: {admin_states}")
         
@@ -760,11 +759,13 @@ async def handle_video_buttons(update: Update, context: ContextTypes.DEFAULT_TYP
     if message_text.startswith("🗑️ "):
         if user_id in admin_states and admin_states[user_id].get("action") == "delete_video":
             title_to_delete = message_text.replace("🗑️ ", "")
+            found = False
             for video_id, video_data in videos.items():
                 if video_data['title'] == title_to_delete:
                     del videos[video_id]
                     save_videos(videos)
                     admin_states.pop(user_id, None)
+                    found = True
                     
                     keyboard = get_admin_video_keyboard()
                     await update.message.reply_text(
@@ -781,10 +782,11 @@ async def handle_video_buttons(update: Update, context: ContextTypes.DEFAULT_TYP
                     )
                     return
             
-            await update.message.reply_text(
-                f"❌ *Video '{title_to_delete}' not found!*",
-                parse_mode="Markdown"
-            )
+            if not found:
+                await update.message.reply_text(
+                    f"❌ *Video '{title_to_delete}' not found!*",
+                    parse_mode="Markdown"
+                )
             return
     
     # Handle video selection (user clicking a video)
@@ -937,236 +939,7 @@ async def handle_video_buttons(update: Update, context: ContextTypes.DEFAULT_TYP
                 reply_markup=keyboard
             )
             return
-    
-    # ============================================
-    # ADD VIDEO STATE HANDLING
-    # ============================================
-    
-    # If we're in add video state
-    if user_id in admin_states and admin_states[user_id].get("action") == "add_video":
-        state = admin_states[user_id]
-        step = state.get("step")
-        
-        print(f"📹 In add_video state, step: {step}")
-        
-        # STEP 1: Waiting for video file
-        if step == "waiting_for_video":
-            print("📹 Waiting for video file...")
-            
-            # Check if it's a video
-            if update.message.video:
-                file_id = update.message.video.file_id
-                print(f"🎬 Video file_id received: {file_id[:20]}...")
-                
-                state["file_id"] = file_id
-                state["step"] = "waiting_for_title"
-                
-                await update.message.reply_text(
-                    "✅ *Video Received!*\n\n"
-                    "📝 *Step 2/2:* Send me the title for this video\n\n"
-                    "📌 Example: `How to Deposit` or `Deposit Tutorial`\n\n"
-                    "Type /cancel to cancel.",
-                    parse_mode="Markdown",
-                    reply_markup=get_back_to_menu_keyboard()
-                )
-                return
-            
-            elif update.message.document:
-                # Check if document is a video
-                if update.message.document.mime_type and update.message.document.mime_type.startswith('video/'):
-                    file_id = update.message.document.file_id
-                    print(f"📄 Document video file_id received: {file_id[:20]}...")
-                    
-                    state["file_id"] = file_id
-                    state["step"] = "waiting_for_title"
-                    
-                    await update.message.reply_text(
-                        "✅ *Video Received!*\n\n"
-                        "📝 *Step 2/2:* Send me the title for this video\n\n"
-                        "📌 Example: `How to Deposit` or `Deposit Tutorial`\n\n"
-                        "Type /cancel to cancel.",
-                        parse_mode="Markdown",
-                        reply_markup=get_back_to_menu_keyboard()
-                    )
-                    return
-                else:
-                    await update.message.reply_text(
-                        "❌ *Please send a video file!*\n\n"
-                        "The file you sent doesn't appear to be a video.",
-                        parse_mode="Markdown"
-                    )
-                    return
-            
-            else:
-                await update.message.reply_text(
-                    "❌ *Please send a video!*\n\n"
-                    "Send a video file or video message.\n\n"
-                    "Type /cancel to cancel.",
-                    parse_mode="Markdown"
-                )
-            return
-        
-        # STEP 2: Waiting for title
-        elif step == "waiting_for_title":
-            title = message_text.strip()
-            print(f"📹 Title received: {title}")
-            
-            if len(title) < 3:
-                await update.message.reply_text(
-                    "❌ *Title too short!*\n\n"
-                    "Please enter a title with at least 3 characters.",
-                    parse_mode="Markdown"
-                )
-                return
-            
-            # Check if title already exists
-            for video_id, video_data in videos.items():
-                if video_data['title'].lower() == title.lower():
-                    await update.message.reply_text(
-                        f"❌ *A video with title '{title}' already exists!*\n\n"
-                        "Please use a different title.",
-                        parse_mode="Markdown"
-                    )
-                    return
-            
-            # Save the video
-            video_id = f"VID_{datetime.now().strftime('%Y%m%d%H%M%S')}"
-            videos[video_id] = {
-                "title": title,
-                "file_id": state.get("file_id"),
-                "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            }
-            save_videos(videos)
-            
-            print(f"✅ Video saved! ID: {video_id}")
-            print(f"📹 Total videos: {len(videos)}")
-            print(f"📁 Videos data: {videos}")
-            
-            admin_states.pop(user_id, None)
-            
-            # Show admin panel again
-            keyboard = get_admin_video_keyboard()
-            await update.message.reply_text(
-                f"✅ *Video Added Successfully!*\n\n"
-                f"🎬 *Title:* {title}\n"
-                f"🆔 *ID:* `{video_id}`\n"
-                f"📅 *Added:* {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
-                f"📹 *Total Videos:* {len(videos)}\n\n"
-                "📹 *Video Tutorials - Admin Panel*\n\n"
-                "📹 *Add Video* - Add a new video tutorial\n"
-                "🗑️ *Delete Video* - Remove a video\n"
-                "📋 *List Videos* - View all videos\n\n"
-                "👆 Select an option below:",
-                parse_mode="Markdown",
-                reply_markup=keyboard
-            )
-            return
-    
-    # ============================================
-    # ADD VIDEO STATE HANDLING
-    # ============================================
-    
-    # If we're in add video state
-    if user_id in admin_states and admin_states[user_id].get("action") == "add_video":
-        state = admin_states[user_id]
-        step = state.get("step")
-        
-        # STEP 1: Waiting for video file
-        if step == "waiting_for_video":
-            # Check if it's a video
-            if update.message.video or update.message.document:
-                # Get video file ID
-                if update.message.video:
-                    file_id = update.message.video.file_id
-                    print(f"🎬 Video file_id: {file_id[:20]}...")  # ✅ DEBUG
-                else:
-                    if update.message.document.mime_type and update.message.document.mime_type.startswith('video/'):
-                        file_id = update.message.document.file_id
-                        print(f"📄 Document file_id: {file_id[:20]}...")  # ✅ DEBUG
-                    else:
-                        await update.message.reply_text(
-                            "❌ *Please send a video file!*\n\n"
-                            "The file you sent doesn't appear to be a video.",
-                            parse_mode="Markdown"
-                        )
-                        return
-                
-                state["file_id"] = file_id
-                state["step"] = "waiting_for_title"
-                
-                await update.message.reply_text(
-                    "✅ *Video Received!*\n\n"
-                    "📝 *Step 2/2:* Send me the title for this video\n\n"
-                    "📌 Example: `How to Deposit` or `Deposit Tutorial`\n\n"
-                    "Type /cancel to cancel.",
-                    parse_mode="Markdown",
-                    reply_markup=get_back_to_menu_keyboard()
-                )
-            else:
-                await update.message.reply_text(
-                    "❌ *Please send a video!*\n\n"
-                    "Send a video file or video message.\n\n"
-                    "Type /cancel to cancel.",
-                    parse_mode="Markdown"
-                )
-            return
-        
-        # STEP 2: Waiting for title
-        elif step == "waiting_for_title":
-            title = message_text.strip()
-            
-            if len(title) < 3:
-                await update.message.reply_text(
-                    "❌ *Title too short!*\n\n"
-                    "Please enter a title with at least 3 characters.",
-                    parse_mode="Markdown"
-                )
-                return
-            
-            # Check if title already exists
-            for video_id, video_data in videos.items():
-                if video_data['title'].lower() == title.lower():
-                    await update.message.reply_text(
-                        f"❌ *A video with title '{title}' already exists!*\n\n"
-                        "Please use a different title.",
-                        parse_mode="Markdown"
-                    )
-                    return
-            
-            # Save the video
-            videos = load_videos()
-            video_id = f"VID_{datetime.now().strftime('%Y%m%d%H%M%S')}"
-            videos[video_id] = {
-                "title": title,
-                "file_id": state.get("file_id"),
-                "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            }
-            save_videos(videos)
-            
-            # ✅ ADD THESE DEBUG LINES
-            print(f"✅ Video saved! ID: {video_id}")
-            print(f"📹 Total videos: {len(videos)}")
-            print(f"📁 Videos data: {videos}")
-            
-            admin_states.pop(user_id, None)
-            
-            # Show admin panel again
-            keyboard = get_admin_video_keyboard()
-            await update.message.reply_text(
-                f"✅ *Video Added Successfully!*\n\n"
-                f"🎬 *Title:* {title}\n"
-                f"🆔 *ID:* `{video_id}`\n"
-                f"📅 *Added:* {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
-                f"📹 *Total Videos:* {len(videos)}\n\n"
-                "📹 *Video Tutorials - Admin Panel*\n\n"
-                "📹 *Add Video* - Add a new video tutorial\n"
-                "🗑️ *Delete Video* - Remove a video\n"
-                "📋 *List Videos* - View all videos\n\n"
-                "👆 Select an option below:",
-                parse_mode="Markdown",
-                reply_markup=keyboard
-            )
-            return
+
 # ============================================
 # DEPOSIT & WITHDRAW SYSTEM
 # ============================================
