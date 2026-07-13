@@ -219,18 +219,40 @@ async def is_user_member(user_id, channel_username, context):
         return False
 
 async def show_main_menu(update, context):
-    keyboard = get_main_menu_keyboard()
+    """Display the main menu with account options."""
+    user_id = update.effective_user.id
+    
+    # Check if user is admin
+    if user_id == ADMIN_ID:
+        keyboard = get_admin_menu_keyboard()
+        menu_text = (
+            "🎰 *Welcome Admin!*\n\n"
+            "👑 *Admin Panel*\n"
+            "➕ `/ass` - Add accounts\n"
+            "📊 `/stats` - View statistics\n"
+            "📋 `/listaccounts` - View all accounts\n"
+            "💳 `/pm` - Payment Methods\n\n"
+            "📌 *User Features:*\n"
+            "💰 *Get 30% CASHBACK on all losses!*\n"
+            "📌 You can get up to *2 accounts per day*\n"
+            "💳 *Deposit & Withdraw easily!*\n\n"
+            "👆 Click the buttons below:"
+        )
+    else:
+        keyboard = get_main_menu_keyboard()
+        menu_text = (
+            "🎰 *Welcome to Saudi 1xBet Bot!*\n\n"
+            "💰 *Get 30% CASHBACK on all losses!*\n"
+            "📌 You can get up to *2 accounts per day*\n"
+            "💳 *Deposit & Withdraw easily!*\n\n"
+            "👆 Click the buttons below:"
+        )
     
     await update.message.reply_text(
-        "🎰 *Welcome to Saudi 1xBet Bot!*\n\n"
-        "💰 *Get 30% CASHBACK on all losses!*\n"
-        "📌 You can get up to *2 accounts per day*\n"
-        "💳 *Deposit & Withdraw easily!*\n\n"
-        "👆 Click the buttons below:",
+        menu_text,
         parse_mode="Markdown",
         reply_markup=keyboard
     )
-
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -275,7 +297,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     await update.message.chat.send_action(action="typing")
 
-    # ⭐ CHECK FOR REJECTION REASON FIRST
+    # CHECK FOR REJECTION REASON FIRST
     if await process_rejection_reason(update, context):
         return
     
@@ -298,6 +320,58 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await handle_pm_buttons(update, context)
             return
     
+    # ============================================
+    # 🆕 ADMIN COMMANDS FROM BUTTONS
+    # ============================================
+    if message_text == "➕ /ass":
+        if update.effective_user.id != ADMIN_ID:
+            await update.message.reply_text("⛔ *Unauthorized!*", parse_mode="Markdown")
+            return
+        
+        await update.message.reply_text(
+            "📝 *How to add an account:*\n\n"
+            "`/ass Username: 123456789 Password: abcd1234`\n\n"
+            "**Example:**\n"
+            "`/ass Username: Ahmed_123 Password: SecurePass456`\n\n"
+            "You can also add multiple:\n"
+            "`/ass Username: user1 Password: pass1, Username: user2 Password: pass2`",
+            parse_mode="Markdown"
+        )
+        if update.effective_user.id == ADMIN_ID:
+            await show_main_menu(update, context)
+        return
+    
+    if message_text == "📊 /stats":
+        if update.effective_user.id != ADMIN_ID:
+            await update.message.reply_text("⛔ *Unauthorized!*", parse_mode="Markdown")
+            return
+        await stats(update, context)
+        if update.effective_user.id == ADMIN_ID:
+            await show_main_menu(update, context)
+        return
+    
+    if message_text == "📋 /listaccounts":
+        if update.effective_user.id != ADMIN_ID:
+            await update.message.reply_text("⛔ *Unauthorized!*", parse_mode="Markdown")
+            return
+        await list_accounts(update, context)
+        if update.effective_user.id == ADMIN_ID:
+            await show_main_menu(update, context)
+        return
+    
+    if message_text == "💳 /pm":
+        if update.effective_user.id != ADMIN_ID:
+            await update.message.reply_text("⛔ *Unauthorized!*", parse_mode="Markdown")
+            return
+        await manage_payment_methods(update, context)
+        if update.effective_user.id == ADMIN_ID:
+            await show_main_menu(update, context)
+        return
+    
+    # ============================================
+    # USER FEATURES
+    # ============================================
+    
     if message_text == "🎰 Get Account" or message_text == "🎰 Get Another Account":
         await handle_get_account(update, user_id, used_data)
         return
@@ -310,7 +384,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "• Technical support\n"
             "• Questions about 1xBet\n"
             "• Cashback inquiries\n\n"
-            f"👉 Click here: *{AGENT_USERNAME}*",
+            f"👉 Click here: {AGENT_USERNAME}",
             parse_mode="Markdown",
             reply_markup=get_back_to_menu_keyboard()
         )
@@ -365,6 +439,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="Markdown",
         reply_markup=get_main_menu_keyboard()
     )
+    
 
 # ============================================
 # ACCOUNT HANDLING
@@ -1695,6 +1770,18 @@ async def reset_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"❌ *User {target_user} not found.*",
             parse_mode="Markdown"
         )
+
+def get_admin_menu_keyboard():
+    """Return the admin menu keyboard"""
+    keyboard = [
+        ["🎰 Get Account", "💬 Talk to Agent"],
+        ["📋 My Accounts", "💳 Deposit & Withdraw"],
+        ["📊 /stats", "📋 /listaccounts"],
+        ["➕ /ass", "💳 /pm"],
+        ["🔙 Back to Menu"]
+    ]
+    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+
 
 # ============================================
 # MAIN FUNCTION
