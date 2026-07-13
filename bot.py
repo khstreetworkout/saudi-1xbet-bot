@@ -323,6 +323,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # ============================================
     # 🆕 ADMIN COMMANDS FROM BUTTONS
     # ============================================
+    
+    # Handle /ass button
     if message_text == "➕ /ass":
         if update.effective_user.id != ADMIN_ID:
             await update.message.reply_text("⛔ *Unauthorized!*", parse_mode="Markdown")
@@ -337,45 +339,42 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "`/ass Username: user1 Password: pass1, Username: user2 Password: pass2`",
             parse_mode="Markdown"
         )
-        if update.effective_user.id == ADMIN_ID:
-            await show_main_menu(update, context)
         return
     
+    # Handle /stats button
     if message_text == "📊 /stats":
         if update.effective_user.id != ADMIN_ID:
             await update.message.reply_text("⛔ *Unauthorized!*", parse_mode="Markdown")
             return
         await stats(update, context)
-        if update.effective_user.id == ADMIN_ID:
-            await show_main_menu(update, context)
         return
     
+    # Handle /listaccounts button
     if message_text == "📋 /listaccounts":
         if update.effective_user.id != ADMIN_ID:
             await update.message.reply_text("⛔ *Unauthorized!*", parse_mode="Markdown")
             return
         await list_accounts(update, context)
-        if update.effective_user.id == ADMIN_ID:
-            await show_main_menu(update, context)
         return
     
+    # Handle /pm button
     if message_text == "💳 /pm":
         if update.effective_user.id != ADMIN_ID:
             await update.message.reply_text("⛔ *Unauthorized!*", parse_mode="Markdown")
             return
         await manage_payment_methods(update, context)
-        if update.effective_user.id == ADMIN_ID:
-            await show_main_menu(update, context)
         return
     
     # ============================================
     # USER FEATURES
     # ============================================
     
+    # Handle Get Account
     if message_text == "🎰 Get Account" or message_text == "🎰 Get Another Account":
         await handle_get_account(update, user_id, used_data)
         return
     
+    # Handle Talk to Agent
     if message_text == "💬 Talk to Agent":
         await update.message.reply_text(
             f"💬 *Contact Our Agent*\n\n"
@@ -390,22 +389,27 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
     
+    # Handle My Accounts
     if message_text == "📋 My Accounts":
         await handle_my_accounts(update, user_id, used_data)
         return
     
+    # Handle Deposit & Withdraw
     if message_text == "💳 Deposit & Withdraw":
         await show_deposit_withdraw_menu(update, context)
         return
     
+    # Handle Deposit
     if message_text == "💰 Deposit":
         await start_deposit(update, context)
         return
     
+    # Handle Withdraw
     if message_text == "💸 Withdraw":
         await start_withdraw(update, context)
         return
     
+    # Handle user states (deposit/withdraw steps)
     if user_id in user_states:
         state = user_states[user_id]
         action = state.get("action")
@@ -433,13 +437,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await process_withdraw_code(update, context)
                 return
     
+    # If unknown message
     await update.message.reply_text(
         "❌ *I don't understand that command.*\n\n"
         "Please use the buttons below:",
         parse_mode="Markdown",
         reply_markup=get_main_menu_keyboard()
     )
-    
 
 # ============================================
 # ACCOUNT HANDLING
