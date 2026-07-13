@@ -334,7 +334,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
-    message_text = update.message.text
+    message_text = update.message.text if update.message.text else ""
     used_data = load_used()
     
     await update.message.chat.send_action(action="typing")
@@ -344,10 +344,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     # ============================================
-    # VIDEO TUTORIALS - Check state FIRST
+    # VIDEO TUTORIALS - Check state FIRST (BEFORE ANYTHING ELSE!)
     # ============================================
     
-    # Handle add video state (must be checked BEFORE anything else)
+    # Handle add video state - this must be checked before ANY other handler
     if user_id in admin_states and admin_states[user_id].get("action") == "add_video":
         await handle_video_buttons(update, context)
         return
@@ -513,7 +513,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="Markdown",
         reply_markup=get_main_menu_keyboard()
     )
-
 # ============================================
 # ACCOUNT HANDLING
 # ============================================
