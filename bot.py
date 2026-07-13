@@ -33,6 +33,7 @@ USED_FILE = os.path.join(DATA_DIR, "used_accounts.json")
 DEPOSIT_FILE = os.path.join(DATA_DIR, "deposits.json")
 WITHDRAW_FILE = os.path.join(DATA_DIR, "withdrawals.json")
 PAYMENT_METHODS_FILE = os.path.join(DATA_DIR, "payment_methods.json")
+VIDEOS_FILE = os.path.join(DATA_DIR, "videos.json")
 
 # ============================================
 # FILE HANDLING
@@ -108,6 +109,16 @@ def save_payment_methods(methods):
     with open(PAYMENT_METHODS_FILE, 'w') as f:
         json.dump(methods, f, indent=2)
 
+def load_videos():
+    if os.path.exists(VIDEOS_FILE):
+        with open(VIDEOS_FILE, 'r') as f:
+            return json.load(f)
+    return {}
+
+def save_videos(videos):
+    with open(VIDEOS_FILE, 'w') as f:
+        json.dump(videos, f, indent=2)
+
 # ============================================
 # WITHDRAW METHODS
 # ============================================
@@ -154,6 +165,19 @@ def get_main_menu_keyboard():
     keyboard = [
         ["🎰 Get Account", "💬 Talk to Agent"],
         ["📋 My Accounts", "💳 Deposit & Withdraw"],
+        ["📹 Video Tutorials"],
+        ["🔙 Back to Menu"]
+    ]
+    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+
+def get_admin_menu_keyboard():
+    """Return the admin menu keyboard"""
+    keyboard = [
+        ["🎰 Get Account", "💬 Talk to Agent"],
+        ["📋 My Accounts", "💳 Deposit & Withdraw"],
+        ["📹 Video Tutorials"],
+        ["📊 /stats", "📋 /listaccounts"],
+        ["➕ /ass", "💳 /pm"],
         ["🔙 Back to Menu"]
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
@@ -178,6 +202,23 @@ def get_pm_menu_keyboard():
         ["✏️ Edit Method", "🗑️ Delete Method"],
         ["🔙 Back to Menu"]
     ]
+    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+
+def get_admin_video_keyboard():
+    """Return admin video management keyboard"""
+    keyboard = [
+        ["📹 Add Video", "🗑️ Delete Video"],
+        ["📋 List Videos"],
+        ["🔙 Back to Menu"]
+    ]
+    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+
+def get_video_menu_keyboard(videos):
+    """Return video menu keyboard with all video titles"""
+    keyboard = []
+    for video_id, video_data in videos.items():
+        keyboard.append([KeyboardButton(f"🎬 {video_data['title']}")])
+    keyboard.append(["🔙 Back to Menu"])
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
 # ============================================
@@ -253,6 +294,7 @@ async def show_main_menu(update, context):
         parse_mode="Markdown",
         reply_markup=keyboard
     )
+
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -366,6 +408,29 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     # ============================================
+    # VIDEO TUTORIALS
+    # ============================================
+    
+    # Handle Video Tutorials
+    if message_text == "📹 Video Tutorials":
+        await show_video_tutorials(update, context)
+        return
+    
+    # Handle video-related buttons
+    if message_text in ["📹 Add Video", "🗑️ Delete Video", "📋 List Videos"]:
+        await handle_video_buttons(update, context)
+        return
+    
+    if message_text.startswith("🎬 ") or message_text.startswith("🗑️ "):
+        await handle_video_buttons(update, context)
+        return
+    
+    # Handle add video state
+    if user_id in admin_states and admin_states[user_id].get("action") == "add_video":
+        await handle_video_buttons(update, context)
+        return
+    
+    # ============================================
     # USER FEATURES
     # ============================================
     
@@ -383,7 +448,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "• Technical support\n"
             "• Questions about 1xBet\n"
             "• Cashback inquiries\n\n"
-            f"👉 Click here: {AGENT_USERNAME}",
+            f"👉 Click here: *{AGENT_USERNAME}*",
             parse_mode="Markdown",
             reply_markup=get_back_to_menu_keyboard()
         )
@@ -546,6 +611,249 @@ async def handle_my_accounts(update, user_id, used_data):
         parse_mode="Markdown",
         reply_markup=get_get_another_keyboard()
     )
+
+# ============================================
+# VIDEO TUTORIALS
+# ============================================
+
+async def show_video_tutorials(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Show video tutorials menu"""
+    user_id = update.effective_user.id
+    videos = load_videos()
+    
+    if not videos:
+        await update.message.reply_text(
+            "📹 *No Videos Available*\n\n"
+            "There are no video tutorials yet.\n"
+            "Please check back later!",
+            parse_mode="Markdown",
+            reply_markup=get_back_to_menu_keyboard()
+        )
+        return
+    
+    # Check if user is admin - show admin menu
+    if user_id == ADMIN_ID:
+        keyboard = get_admin_video_keyboard()
+        await update.message.reply_text(
+            "📹 *Video Tutorials - Admin Panel*\n\n"
+            f"📊 Total Videos: {len(videos)}\n\n"
+            "📹 *Add Video* - Add a new video tutorial\n"
+            "🗑️ *Delete Video* - Remove a video\n"
+            "📋 *List Videos* - View all videos\n\n"
+            "👆 Select an option below:",
+            parse_mode="Markdown",
+            reply_markup=keyboard
+        )
+    else:
+        # User view - show video list
+        keyboard = get_video_menu_keyboard(videos)
+        text = "📹 *Video Tutorials*\n\n"
+        for video_id, video_data in videos.items():
+            text += f"🎬 {video_data['title']}\n"
+        text += "\n👆 Click a video to watch:"
+        
+        await update.message.reply_text(
+            text,
+            parse_mode="Markdown",
+            reply_markup=keyboard
+        )
+
+async def handle_video_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle video menu buttons"""
+    user_id = str(update.effective_user.id)
+    message_text = update.message.text
+    videos = load_videos()
+    
+    # Handle Back to Menu
+    if message_text == "🔙 Back to Menu":
+        await show_main_menu(update, context)
+        return
+    
+    # Admin: Add Video
+    if message_text == "📹 Add Video":
+        if update.effective_user.id != ADMIN_ID:
+            await update.message.reply_text("⛔ *Unauthorized!*", parse_mode="Markdown")
+            return
+        
+        await update.message.reply_text(
+            "📹 *Add Video Tutorial*\n\n"
+            "Send me the video file and a title.\n\n"
+            "📝 *Instructions:*\n"
+            "1. First, send the video (as a file or video)\n"
+            "2. Then send the title for this video\n\n"
+            "Type /cancel to cancel.",
+            parse_mode="Markdown",
+            reply_markup=get_back_to_menu_keyboard()
+        )
+        admin_states[user_id] = {"action": "add_video", "step": "waiting_for_video"}
+        return
+    
+    # Admin: Delete Video
+    if message_text == "🗑️ Delete Video":
+        if update.effective_user.id != ADMIN_ID:
+            await update.message.reply_text("⛔ *Unauthorized!*", parse_mode="Markdown")
+            return
+        
+        if not videos:
+            await update.message.reply_text(
+                "📭 *No videos to delete!*",
+                parse_mode="Markdown"
+            )
+            return
+        
+        keyboard = []
+        for video_id, video_data in videos.items():
+            keyboard.append([KeyboardButton(f"🗑️ {video_data['title']}")])
+        keyboard.append(["🔙 Back to Menu"])
+        reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+        
+        admin_states[user_id] = {"action": "delete_video", "step": "select"}
+        
+        await update.message.reply_text(
+            "🗑️ *Delete Video*\n\n"
+            "Select the video you want to delete:",
+            parse_mode="Markdown",
+            reply_markup=reply_markup
+        )
+        return
+    
+    # Admin: List Videos
+    if message_text == "📋 List Videos":
+        if update.effective_user.id != ADMIN_ID:
+            await update.message.reply_text("⛔ *Unauthorized!*", parse_mode="Markdown")
+            return
+        
+        if not videos:
+            await update.message.reply_text("📭 *No videos available.*", parse_mode="Markdown")
+            return
+        
+        text = "📋 *Video List*\n\n"
+        for video_id, video_data in videos.items():
+            text += f"🆔 ID: `{video_id}`\n"
+            text += f"🎬 Title: {video_data['title']}\n"
+            text += f"📅 Added: {video_data.get('created_at', 'Unknown')}\n\n"
+        
+        await update.message.reply_text(text, parse_mode="Markdown")
+        return
+    
+    # Handle delete confirmation
+    if message_text.startswith("🗑️ "):
+        if user_id in admin_states and admin_states[user_id].get("action") == "delete_video":
+            title_to_delete = message_text.replace("🗑️ ", "")
+            for video_id, video_data in videos.items():
+                if video_data['title'] == title_to_delete:
+                    del videos[video_id]
+                    save_videos(videos)
+                    admin_states.pop(user_id, None)
+                    await update.message.reply_text(
+                        f"✅ *Video Deleted!*\n\n"
+                        f"Removed: {title_to_delete}",
+                        parse_mode="Markdown",
+                        reply_markup=get_admin_video_keyboard()
+                    )
+                    return
+            
+            await update.message.reply_text(
+                f"❌ *Video '{title_to_delete}' not found!*",
+                parse_mode="Markdown"
+            )
+            return
+    
+    # Handle video selection (user clicking a video)
+    if message_text.startswith("🎬 "):
+        title = message_text.replace("🎬 ", "")
+        for video_id, video_data in videos.items():
+            if video_data['title'] == title:
+                # Send the video
+                try:
+                    await update.message.reply_video(
+                        video=video_data['file_id'],
+                        caption=f"🎬 *{video_data['title']}*\n\n"
+                                f"📹 Tutorial Video\n"
+                                f"📅 Added: {video_data.get('created_at', 'Unknown')}",
+                        parse_mode="Markdown"
+                    )
+                    # Keep the video menu visible
+                    return
+                except Exception as e:
+                    print(f"Error sending video: {e}")
+                    await update.message.reply_text(
+                        "❌ *Error sending video!*\n\n"
+                        "The video file might be unavailable.",
+                        parse_mode="Markdown"
+                    )
+                    return
+        
+        await update.message.reply_text(
+            f"❌ *Video '{title}' not found!*",
+            parse_mode="Markdown"
+        )
+        return
+    
+    # If we're in add video state
+    if user_id in admin_states and admin_states[user_id].get("action") == "add_video":
+        state = admin_states[user_id]
+        step = state.get("step")
+        
+        if step == "waiting_for_video":
+            # Check if it's a video
+            if update.message.video or update.message.document:
+                # Get video file ID
+                if update.message.video:
+                    file_id = update.message.video.file_id
+                else:
+                    file_id = update.message.document.file_id
+                
+                state["file_id"] = file_id
+                state["step"] = "waiting_for_title"
+                
+                await update.message.reply_text(
+                    "✅ *Video Received!*\n\n"
+                    "Now send me the title for this video:\n"
+                    "📝 Example: `How to Deposit` or `Deposit Tutorial`",
+                    parse_mode="Markdown",
+                    reply_markup=get_back_to_menu_keyboard()
+                )
+            else:
+                await update.message.reply_text(
+                    "❌ *Please send a video!*\n\n"
+                    "Send a video file or video message.",
+                    parse_mode="Markdown"
+                )
+            return
+        
+        elif step == "waiting_for_title":
+            title = message_text.strip()
+            
+            if len(title) < 3:
+                await update.message.reply_text(
+                    "❌ *Title too short!*\n\n"
+                    "Please enter a title with at least 3 characters.",
+                    parse_mode="Markdown"
+                )
+                return
+            
+            # Save the video
+            videos = load_videos()
+            video_id = f"VID_{datetime.now().strftime('%Y%m%d%H%M%S')}"
+            videos[video_id] = {
+                "title": title,
+                "file_id": state.get("file_id"),
+                "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            }
+            save_videos(videos)
+            
+            admin_states.pop(user_id, None)
+            
+            await update.message.reply_text(
+                f"✅ *Video Added!*\n\n"
+                f"🎬 Title: {title}\n"
+                f"🆔 ID: `{video_id}`\n\n"
+                f"📹 Total Videos: {len(videos)}",
+                parse_mode="Markdown",
+                reply_markup=get_admin_video_keyboard()
+            )
+            return
 
 # ============================================
 # DEPOSIT & WITHDRAW SYSTEM
@@ -784,12 +1092,11 @@ async def notify_accountant_deposit(update, context, deposit_id, deposit_data):
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    # ⭐ FIX: Remove parse_mode to avoid formatting errors
     message = (
-        f"💰 New Deposit Request\n\n"
-        f"🆔 ID: {deposit_id}\n"
+        f"💰 *New Deposit Request*\n\n"
+        f"🆔 ID: `{deposit_id}`\n"
         f"👤 User: @{deposit_data['username']}\n"
-        f"🆔 Player ID: {deposit_data['player_id']}\n"
+        f"🆔 Player ID: `{deposit_data['player_id']}`\n"
         f"💳 Method: {method_name}\n"
         f"💵 Amount: {deposit_data['amount']} SAR\n"
         f"📅 Time: {deposit_data['created_at']}\n\n"
@@ -799,6 +1106,7 @@ async def notify_accountant_deposit(update, context, deposit_id, deposit_data):
     await context.bot.send_message(
         chat_id=ACCOUNTANT_ID,
         text=message,
+        parse_mode="Markdown",
         reply_markup=reply_markup
     )
     
@@ -807,13 +1115,16 @@ async def notify_accountant_deposit(update, context, deposit_id, deposit_data):
             await context.bot.send_photo(
                 chat_id=ACCOUNTANT_ID,
                 photo=photo,
-                caption=f"📸 Receipt for Deposit {deposit_id}"
+                caption=f"📸 *Receipt for Deposit {deposit_id}*",
+                parse_mode="Markdown"
             )
     else:
         await context.bot.send_message(
             chat_id=ACCOUNTANT_ID,
-            text=f"⚠️ Receipt photo not found!\nFile path: {deposit_data['receipt']}"
+            text=f"⚠️ *Receipt photo not found!*\nFile path: {deposit_data['receipt']}",
+            parse_mode="Markdown"
         )
+
 # --- Withdraw Flow ---
 
 async def start_withdraw(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -962,7 +1273,6 @@ async def process_withdraw_code(update: Update, context: ContextTypes.DEFAULT_TY
         reply_markup=get_back_to_menu_keyboard()
     )
     
-    # Debug print to confirm it's being called
     print(f"📤 Calling notify_accountant_withdraw for ID: {withdraw_id}")
     
     await notify_accountant_withdraw(update, context, withdraw_id, withdrawals[withdraw_id])
@@ -981,24 +1291,23 @@ async def notify_accountant_withdraw(update, context, withdraw_id, withdraw_data
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
-        # ⭐ FIX: Use parse_mode=None to avoid Markdown errors, or escape special characters
         message = (
             f"💸 *New Withdrawal Request*\n\n"
-            f"🆔 ID: {withdraw_id}\n"
+            f"🆔 ID: `{withdraw_id}`\n"
             f"👤 User: @{withdraw_data['username']}\n"
             f"💳 Method: {method_name}\n"
             f"📋 Details:\n{details_text}\n"
-            f"🔑 Withdrawal Code: {withdraw_data['code']}\n"
+            f"🔑 Withdrawal Code: `{withdraw_data['code']}`\n"
             f"📅 Time: {withdraw_data['created_at']}\n\n"
             f"Please verify and respond:"
         )
         
         print(f"📤 Attempting to send withdrawal to ACCOUNTANT_ID: {ACCOUNTANT_ID}")
         
-        # ⭐ FIX: Remove parse_mode to avoid formatting errors
         await context.bot.send_message(
             chat_id=ACCOUNTANT_ID,
             text=message,
+            parse_mode="Markdown",
             reply_markup=reply_markup
         )
         print(f"✅ Withdrawal notification sent for ID: {withdraw_id}")
@@ -1774,18 +2083,6 @@ async def reset_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"❌ *User {target_user} not found.*",
             parse_mode="Markdown"
         )
-
-def get_admin_menu_keyboard():
-    """Return the admin menu keyboard"""
-    keyboard = [
-        ["🎰 Get Account", "💬 Talk to Agent"],
-        ["📋 My Accounts", "💳 Deposit & Withdraw"],
-        ["📊 /stats", "📋 /listaccounts"],
-        ["➕ /ass", "💳 /pm"],
-        ["🔙 Back to Menu"]
-    ]
-    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-
 
 # ============================================
 # MAIN FUNCTION
