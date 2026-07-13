@@ -310,7 +310,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "• Technical support\n"
             "• Questions about 1xBet\n"
             "• Cashback inquiries\n\n"
-            f"👉 Click here: {AGENT_USERNAME}",
+            f"👉 Click here: https://t.me/*Saudi_1xbet_agent*",
             parse_mode="Markdown",
             reply_markup=get_back_to_menu_keyboard()
         )
@@ -476,13 +476,8 @@ async def show_deposit_withdraw_menu(update, context):
     payment_methods = load_payment_methods()
     
     text = "💳 *Deposit & Withdrawal*\n\n"
-    text += "💰 *Available Payment Methods:*\n"
     
-    for key, method in payment_methods.items():
-        text += f"• {method['name']}\n"
-        text += f"  {method['details']}\n\n"
-    
-    text += "👆 *Select an option below:*"
+    text += "👇 *Select an option below:*"
     
     keyboard = [
         ["💰 Deposit", "💸 Withdraw"],
