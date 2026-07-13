@@ -345,14 +345,54 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     # ============================================
-    # VIDEO TUTORIALS - Check state FIRST (BEFORE ANYTHING ELSE!)
+    # 🎥 VIDEO TUTORIALS - CHECK STATE FIRST!
     # ============================================
     
-    # 🔥 CRITICAL: If user is in add_video state, handle it immediately
+    # 🔥 CRITICAL: Check if user is in add_video state BEFORE anything else
     if user_id in admin_states and admin_states[user_id].get("action") == "add_video":
-        print(f"📹 User in add_video state, forwarding to handle_video_buttons")
-        await handle_video_buttons(update, context)
-        return
+        print(f"📹 User {user_id} in add_video state")
+        
+        # Check if they sent a video
+        if update.message.video:
+            print(f"🎬 Video detected! file_id: {update.message.video.file_id[:20]}...")
+            await handle_video_buttons(update, context)
+            return
+        elif update.message.document:
+            # Check if document is a video
+            if update.message.document.mime_type and update.message.document.mime_type.startswith('video/'):
+                print(f"📄 Video document detected! file_id: {update.message.document.file_id[:20]}...")
+                await handle_video_buttons(update, context)
+                return
+            else:
+                await update.message.reply_text(
+                    "❌ *Please send a video file!*\n\n"
+                    "The file you sent doesn't appear to be a video.\n\n"
+                    "Type /cancel to cancel.",
+                    parse_mode="Markdown"
+                )
+                return
+        elif update.message.text:
+            # They sent text - check if it's a title or cancel
+            if update.message.text.lower() == "/cancel":
+                admin_states.pop(user_id, None)
+                await update.message.reply_text(
+                    "❌ *Cancelled!*",
+                    parse_mode="Markdown",
+                    reply_markup=get_admin_video_keyboard()
+                )
+                return
+            else:
+                # Assume it's the title
+                await handle_video_buttons(update, context)
+                return
+        else:
+            await update.message.reply_text(
+                "📹 *Please send a video file!*\n\n"
+                "Send a video file or video message.\n\n"
+                "Type /cancel to cancel.",
+                parse_mode="Markdown"
+            )
+            return
     
     # ============================================
     # HANDLE PHOTO (RECEIPT)
