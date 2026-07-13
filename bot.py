@@ -310,7 +310,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "• Technical support\n"
             "• Questions about 1xBet\n"
             "• Cashback inquiries\n\n"
-            f"👉 Click here: https://t.me/*Saudi_1xbet_agent*",
+            f"👉 Click here: *{AGENT_USERNAME}*",
             parse_mode="Markdown",
             reply_markup=get_back_to_menu_keyboard()
         )
@@ -476,7 +476,6 @@ async def show_deposit_withdraw_menu(update, context):
     payment_methods = load_payment_methods()
     
     text = "💳 *Deposit & Withdrawal*\n\n"
-    
     text += "👇 *Select an option below:*"
     
     keyboard = [
@@ -890,34 +889,41 @@ async def process_withdraw_code(update: Update, context: ContextTypes.DEFAULT_TY
     await notify_accountant_withdraw(update, context, withdraw_id, withdrawals[withdraw_id])
 
 async def notify_accountant_withdraw(update, context, withdraw_id, withdraw_data):
-    method_name = WITHDRAW_METHODS[withdraw_data["method"]]["name"]
-    details_text = "\n".join([f"• {k}: {v}" for k, v in withdraw_data["details"].items()])
-    
-    keyboard = [
-        [
-            InlineKeyboardButton("✅ Accept", callback_data=f"withdraw_accept_{withdraw_id}"),
-            InlineKeyboardButton("❌ Reject", callback_data=f"withdraw_reject_{withdraw_id}")
+    """Send withdrawal request to accountant with proper error handling"""
+    try:
+        method_name = WITHDRAW_METHODS[withdraw_data["method"]]["name"]
+        details_text = "\n".join([f"• {k}: {v}" for k, v in withdraw_data["details"].items()])
+        
+        keyboard = [
+            [
+                InlineKeyboardButton("✅ Accept", callback_data=f"withdraw_accept_{withdraw_id}"),
+                InlineKeyboardButton("❌ Reject", callback_data=f"withdraw_reject_{withdraw_id}")
+            ]
         ]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    message = (
-        f"💸 *New Withdrawal Request*\n\n"
-        f"🆔 ID: `{withdraw_id}`\n"
-        f"👤 User: @{withdraw_data['username']}\n"
-        f"💳 Method: {method_name}\n"
-        f"📋 Details:\n{details_text}\n"
-        f"🔑 Withdrawal Code: `{withdraw_data['code']}`\n"
-        f"📅 Time: {withdraw_data['created_at']}\n\n"
-        f"Please verify and respond:"
-    )
-    
-    await context.bot.send_message(
-        chat_id=ACCOUNTANT_ID,
-        text=message,
-        parse_mode="Markdown",
-        reply_markup=reply_markup
-    )
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        message = (
+            f"💸 *New Withdrawal Request*\n\n"
+            f"🆔 ID: `{withdraw_id}`\n"
+            f"👤 User: @{withdraw_data['username']}\n"
+            f"💳 Method: {method_name}\n"
+            f"📋 Details:\n{details_text}\n"
+            f"🔑 Withdrawal Code: `{withdraw_data['code']}`\n"
+            f"📅 Time: {withdraw_data['created_at']}\n\n"
+            f"Please verify and respond:"
+        )
+        
+        await context.bot.send_message(
+            chat_id=ACCOUNTANT_ID,
+            text=message,
+            parse_mode="Markdown",
+            reply_markup=reply_markup
+        )
+        print(f"✅ Withdrawal notification sent for ID: {withdraw_id}")
+    except Exception as e:
+        print(f"❌ Error sending withdrawal notification: {e}")
+        import traceback
+        traceback.print_exc()
 
 # ============================================
 # ACCOUNTANT HANDLERS
@@ -928,10 +934,14 @@ async def handle_accountant_action(update: Update, context: ContextTypes.DEFAULT
     await query.answer()
     
     data = query.data
+    print(f"🔔 Accountant action: {data}")
+    
     parts = data.split("_")
     action = parts[1]
     type_ = parts[0]
     request_id = "_".join(parts[2:])
+    
+    print(f"📊 Type: {type_}, Action: {action}, ID: {request_id}")
     
     if type_ == "deposit":
         deposits = load_deposits()
@@ -954,8 +964,8 @@ async def handle_accountant_action(update: Update, context: ContextTypes.DEFAULT
             )
             
             await query.edit_message_text("✅ Deposit accepted!")
+            print(f"✅ Deposit {request_id} accepted")
         else:
-            # ⭐ Store the request ID for rejection reason
             context.user_data["reject_deposit"] = request_id
             await query.edit_message_text(
                 f"❌ *Reject Deposit*\n\n"
@@ -963,11 +973,13 @@ async def handle_accountant_action(update: Update, context: ContextTypes.DEFAULT
                 "Please send the reason for rejection:",
                 parse_mode="Markdown"
             )
+            print(f"❌ Deposit {request_id} rejected - waiting for reason")
     
     elif type_ == "withdraw":
         withdrawals = load_withdrawals()
         if request_id not in withdrawals:
             await query.edit_message_text("❌ Withdrawal request not found!")
+            print(f"❌ Withdrawal {request_id} not found!")
             return
         
         if action == "accept":
@@ -984,8 +996,8 @@ async def handle_accountant_action(update: Update, context: ContextTypes.DEFAULT
             )
             
             await query.edit_message_text("✅ Withdrawal accepted!")
+            print(f"✅ Withdrawal {request_id} accepted")
         else:
-            # ⭐ Store the request ID for rejection reason
             context.user_data["reject_withdraw"] = request_id
             await query.edit_message_text(
                 f"❌ *Reject Withdrawal*\n\n"
@@ -993,6 +1005,7 @@ async def handle_accountant_action(update: Update, context: ContextTypes.DEFAULT
                 "Please send the reason for rejection:",
                 parse_mode="Markdown"
             )
+            print(f"❌ Withdrawal {request_id} rejected - waiting for reason")
 
 async def process_rejection_reason(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Process rejection reason from accountant. Returns True if handled."""
@@ -1046,6 +1059,7 @@ async def process_rejection_reason(update: Update, context: ContextTypes.DEFAULT
             return True
     
     return False
+
 # ============================================
 # PAYMENT METHODS MANAGEMENT (BUTTON-BASED)
 # ============================================
