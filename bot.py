@@ -32,7 +32,7 @@ ACCOUNTS_FILE = os.path.join(DATA_DIR, "accounts.json")
 USED_FILE = os.path.join(DATA_DIR, "used_accounts.json")
 DEPOSIT_FILE = os.path.join(DATA_DIR, "deposits.json")
 WITHDRAW_FILE = os.path.join(DATA_DIR, "withdrawals.json")
-STREAK_FILE = os.path.join(DATA_DIR, "streaks.json")
+PAYMENT_METHODS_FILE = os.path.join(DATA_DIR, "payment_methods.json")
 
 # ============================================
 # FILE HANDLING
@@ -77,68 +77,10 @@ def save_withdrawals(withdrawals):
     with open(WITHDRAW_FILE, 'w') as f:
         json.dump(withdrawals, f, indent=2)
 
-def load_streaks():
-    if os.path.exists(STREAK_FILE):
-        with open(STREAK_FILE, 'r') as f:
-            return json.load(f)
-    return {}
-
-def save_streaks(streaks):
-    with open(STREAK_FILE, 'w') as f:
-        json.dump(streaks, f, indent=2)
-
-# ============================================
-# PAYMENT METHODS
-# ============================================
-PAYMENT_METHODS = {
-    "barq": {
-        "name": "💳 Barq Wallet",
-        "fields": ["phone_number"],
-        "details": "📱 Transfer to: 05XXXXXXXX"
-    },
-    "bank_transfer": {
-        "name": "🏦 Bank Transfer",
-        "fields": ["phone_number", "iban"],
-        "details": "🏦 IBAN: SA1234567890\n📱 Phone: 05XXXXXXXX"
-    },
-    "stc_pay": {
-        "name": "📱 STC Pay",
-        "fields": ["phone_number"],
-        "details": "📱 Transfer to: 05XXXXXXXX"
-    },
-    "urpay": {
-        "name": "💳 UrPay",
-        "fields": ["phone_number", "wallet_address"],
-        "details": "📱 Phone: 05XXXXXXXX\n🔗 Wallet: example@urpay.com"
-    }
-}
-
-WITHDRAW_METHODS = {
-    "bank_transfer": {
-        "name": "🏦 Bank Transfer",
-        "fields": ["full_name", "iban", "bank_name"]
-    },
-    "barq": {
-        "name": "💳 Barq Wallet",
-        "fields": ["phone_number"]
-    },
-    "stc_pay": {
-        "name": "📱 STC Pay",
-        "fields": ["phone_number"]
-    }
-}
-
-# ============================================
-# PAYMENT METHODS MANAGEMENT (ADMIN ONLY)
-# ============================================
-
-PAYMENT_METHODS_FILE = os.path.join(DATA_DIR, "payment_methods.json")
-
 def load_payment_methods():
     if os.path.exists(PAYMENT_METHODS_FILE):
         with open(PAYMENT_METHODS_FILE, 'r') as f:
             return json.load(f)
-    # Default methods if file doesn't exist
     return {
         "barq": {
             "name": "💳 Barq Wallet",
@@ -166,209 +108,29 @@ def save_payment_methods(methods):
     with open(PAYMENT_METHODS_FILE, 'w') as f:
         json.dump(methods, f, indent=2)
 
-async def manage_payment_methods(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Admin command to manage payment methods"""
-    if update.effective_user.id != ADMIN_ID:
-        await update.message.reply_text("⛔ *Unauthorized!*", parse_mode="Markdown")
-        return
-    
-    if not context.args:
-        keyboard = [
-            ["📋 List Methods", "➕ Add Method"],
-            ["✏️ Edit Method", "🗑️ Delete Method"],
-            ["🔙 Back to Menu"]
-        ]
-        reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-        await update.message.reply_text(
-            "📋 *Payment Methods Management*\n\n"
-            "Select an option below:\n\n"
-            "📋 *List Methods* - View all payment methods\n"
-            "➕ *Add Method* - Add a new payment method\n"
-            "✏️ *Edit Method* - Edit an existing method\n"
-            "🗑️ *Delete Method* - Remove a method",
-            parse_mode="Markdown",
-            reply_markup=reply_markup
-        )
-        return
-    
-    action = context.args[0].lower()
-    
-    if action == "list":
-        methods = load_payment_methods()
-        if not methods:
-            await update.message.reply_text("📭 *No payment methods available.*", parse_mode="Markdown")
-            return
-        
-        text = "📋 *Payment Methods*\n\n"
-        for key, method in methods.items():
-            text += f"🔹 *{method['name']}*\n"
-            text += f"   📌 ID: `{key}`\n"
-            text += f"   📋 Details: {method['details']}\n"
-            text += f"   📝 Fields: {', '.join(method['fields'])}\n\n"
-        
-        await update.message.reply_text(text, parse_mode="Markdown")
-        return
-    
-    elif action == "add":
-        # Format: /pm add key "Name" "details" field1,field2
-        if len(context.args) < 4:
-            await update.message.reply_text(
-                "📝 *How to add a payment method:*\n\n"
-                "`/pm add method_key \"Method Name\" \"Details\" field1,field2`\n\n"
-                "**Example:**\n"
-                "`/pm add newpay \"💰 NewPay\" \"📱 Phone: 05XXXXXXXX\" phone_number`\n"
-                "`/pm add newpay \"💰 NewPay\" \"📱 Phone: 05XXXXXXXX\\n🏦 IBAN: SA123\" phone_number,iban`",
-                parse_mode="Markdown"
-            )
-            return
-        
-        key = context.args[1]
-        # Parse quoted strings
-        args_str = " ".join(context.args[2:])
-        parts = re.findall(r'"([^"]*)"', args_str)
-        
-        if len(parts) < 2:
-            await update.message.reply_text("❌ *Invalid format!* Use quotes for name and details.", parse_mode="Markdown")
-            return
-        
-        name = parts[0]
-        details = parts[1]
-        
-        # Get fields (remaining text after quoted parts)
-        remaining = args_str
-        for p in parts:
-            remaining = remaining.replace(f'"{p}"', "", 1)
-        fields = [f.strip() for f in remaining.replace(",", " ").split() if f.strip()]
-        
-        if not fields:
-            fields = ["phone_number"]
-        
-        methods = load_payment_methods()
-        methods[key] = {
-            "name": name,
-            "fields": fields,
-            "details": details
-        }
-        save_payment_methods(methods)
-        
-        await update.message.reply_text(
-            f"✅ *Payment Method Added!*\n\n"
-            f"🔹 Name: {name}\n"
-            f"📌 ID: `{key}`\n"
-            f"📋 Details: {details}\n"
-            f"📝 Fields: {', '.join(fields)}",
-            parse_mode="Markdown"
-        )
-        return
-    
-    elif action == "delete":
-        if len(context.args) < 2:
-            await update.message.reply_text(
-                "📝 *How to delete a method:*\n\n"
-                "`/pm delete method_key`\n\n"
-                "**Example:**\n"
-                "`/pm delete barq`",
-                parse_mode="Markdown"
-            )
-            return
-        
-        key = context.args[1]
-        methods = load_payment_methods()
-        
-        if key not in methods:
-            await update.message.reply_text(f"❌ *Method `{key}` not found!*", parse_mode="Markdown")
-            return
-        
-        del methods[key]
-        save_payment_methods(methods)
-        await update.message.reply_text(f"✅ *Method `{key}` deleted!*", parse_mode="Markdown")
-        return
-    
-    elif action == "edit":
-        if len(context.args) < 3:
-            await update.message.reply_text(
-                "📝 *How to edit a method:*\n\n"
-                "`/pm edit method_key field_name \"new value\"`\n\n"
-                "**Example:**\n"
-                "`/pm edit barq name \"💳 New Barq\"`\n"
-                "`/pm edit barq details \"📱 New Phone: 05XXXXXXXX\"`",
-                parse_mode="Markdown"
-            )
-            return
-        
-        key = context.args[1]
-        field = context.args[2].lower()
-        
-        # Get the value (everything after field name)
-        value = " ".join(context.args[3:]).strip('"')
-        
-        methods = load_payment_methods()
-        
-        if key not in methods:
-            await update.message.reply_text(f"❌ *Method `{key}` not found!*", parse_mode="Markdown")
-            return
-        
-        if field in methods[key]:
-            methods[key][field] = value
-            save_payment_methods(methods)
-            await update.message.reply_text(
-                f"✅ *Method `{key}` updated!*\n\n"
-                f"📝 {field}: {value}",
-                parse_mode="Markdown"
-            )
-        else:
-            await update.message.reply_text(
-                f"❌ *Field `{field}` not found!*\n\n"
-                f"Available fields: {', '.join(methods[key].keys())}",
-                parse_mode="Markdown"
-            )
-        return
-    
-    else:
-        await update.message.reply_text(
-            "❌ *Unknown action!*\n\n"
-            "Available actions: `list`, `add`, `edit`, `delete`",
-            parse_mode="Markdown"
-        )
-
 # ============================================
-# TASKS FOR STREAK CHALLENGE
+# WITHDRAW METHODS
 # ============================================
-TASKS = {
-    1: {"task": "Login to 1xBet app with your account", "reward": 10, "week": 1},
-    2: {"task": "Place 1 bet", "reward": 10, "week": 1},
-    3: {"task": "Share bot with 2 friends", "reward": 10, "week": 1},
-    4: {"task": "Login again + Place 1 bet", "reward": 10, "week": 1},
-    5: {"task": "Share your referral link", "reward": 10, "week": 1},
-    6: {"task": "Deposit 50+ SAR", "reward": 10, "week": 1},
-    7: {"task": "Login + Place 1 bet + Share", "reward": 10, "week": 1},
-    8: {"task": "Login daily (3 days streak)", "reward": 20, "week": 2},
-    9: {"task": "Place 2 bets", "reward": 20, "week": 2},
-    10: {"task": "Share bot with 3 friends", "reward": 20, "week": 2},
-    11: {"task": "Deposit 100+ SAR", "reward": 20, "week": 2},
-    12: {"task": "Login + Place 2 bets", "reward": 20, "week": 2},
-    13: {"task": "Refer 1 new user", "reward": 20, "week": 2},
-    14: {"task": "Weekly check-in", "reward": 20, "week": 2},
-    15: {"task": "Login streak (7 days)", "reward": 30, "week": 3},
-    16: {"task": "Place 3 bets", "reward": 30, "week": 3},
-    17: {"task": "Share bot with 5 friends", "reward": 30, "week": 3},
-    18: {"task": "Deposit 150+ SAR", "reward": 30, "week": 3},
-    19: {"task": "Login + Place 3 bets", "reward": 30, "week": 3},
-    20: {"task": "Refer 2 new users", "reward": 30, "week": 3},
-    21: {"task": "Weekly check-in", "reward": 30, "week": 3},
-    22: {"task": "Login streak (14 days)", "reward": 40, "week": 4},
-    23: {"task": "Place 5 bets", "reward": 40, "week": 4},
-    24: {"task": "Share bot with 7 friends", "reward": 40, "week": 4},
-    25: {"task": "Deposit 200+ SAR", "reward": 40, "week": 4},
-    26: {"task": "Login + Place 5 bets", "reward": 40, "week": 4},
-    27: {"task": "Refer 3 new users", "reward": 40, "week": 4},
-    28: {"task": "VIP Celebration!", "reward": 40, "week": 4},
+WITHDRAW_METHODS = {
+    "bank_transfer": {
+        "name": "🏦 Bank Transfer",
+        "fields": ["full_name", "iban", "bank_name"]
+    },
+    "barq": {
+        "name": "💳 Barq Wallet",
+        "fields": ["phone_number"]
+    },
+    "stc_pay": {
+        "name": "📱 STC Pay",
+        "fields": ["phone_number"]
+    }
 }
 
 # ============================================
 # USER STATE STORAGE
 # ============================================
 user_states = {}
+admin_states = {}
 
 # ============================================
 # HELPER FUNCTIONS
@@ -389,24 +151,20 @@ def get_user_accounts(user_id, used_data):
     return [entry["account"] for entry in used_data[user_id]]
 
 def get_main_menu_keyboard():
-    """Return the main menu keyboard (reply keyboard)"""
     keyboard = [
         ["🎰 Get Account", "💬 Talk to Agent"],
-        ["📋 My Accounts", "🔥 Streak Challenge"],
-        ["💳 Deposit & Withdraw"],
+        ["📋 My Accounts", "💳 Deposit & Withdraw"],
         ["🔙 Back to Menu"]
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
 def get_back_to_menu_keyboard():
-    """Return back button (reply keyboard)"""
     keyboard = [
         ["🔙 Back to Menu"]
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
 def get_get_another_keyboard():
-    """Return get another + back menu"""
     keyboard = [
         ["🎰 Get Another Account"],
         ["📋 My Accounts"],
@@ -414,14 +172,13 @@ def get_get_another_keyboard():
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
-def get_deposit_withdraw_keyboard():
-    """Return deposit/withdraw menu"""
+def get_pm_menu_keyboard():
     keyboard = [
-        ["💰 Deposit", "💸 Withdraw"],
+        ["📋 List Methods", "➕ Add Method"],
+        ["✏️ Edit Method", "🗑️ Delete Method"],
         ["🔙 Back to Menu"]
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-
 
 # ============================================
 # MAIN BOT COMMANDS
@@ -462,14 +219,12 @@ async def is_user_member(user_id, channel_username, context):
         return False
 
 async def show_main_menu(update, context):
-    """Display the main menu with account options."""
     keyboard = get_main_menu_keyboard()
     
     await update.message.reply_text(
         "🎰 *Welcome to Saudi 1xBet Bot!*\n\n"
         "💰 *Get 30% CASHBACK on all losses!*\n"
         "📌 You can get up to *2 accounts per day*\n"
-        "🔥 *Complete daily tasks and earn rewards!*\n"
         "💳 *Deposit & Withdraw easily!*\n\n"
         "👆 Click the buttons below:",
         parse_mode="Markdown",
@@ -480,7 +235,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     
-    # Handle accountant actions
     if query.data.startswith("deposit_accept_") or query.data.startswith("deposit_reject_"):
         await handle_accountant_action(update, context)
         return
@@ -515,30 +269,35 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ============================================
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle user messages from reply keyboard"""
     user_id = str(update.effective_user.id)
     message_text = update.message.text
     used_data = load_used()
     
-    # Show typing indicator
     await update.message.chat.send_action(action="typing")
     
-    # Handle photo (receipt)
     if update.message.photo:
         await handle_receipt(update, context)
         return
     
-    # Handle Back to Menu
     if message_text == "🔙 Back to Menu":
+        admin_states.pop(user_id, None)
         await show_main_menu(update, context)
         return
     
-    # Handle Get Account
+    # Handle Payment Methods Management (Admin only)
+    if update.effective_user.id == ADMIN_ID:
+        if user_id in admin_states:
+            await handle_pm_state(update, context)
+            return
+        
+        if message_text in ["📋 List Methods", "➕ Add Method", "✏️ Edit Method", "🗑️ Delete Method"]:
+            await handle_pm_buttons(update, context)
+            return
+    
     if message_text == "🎰 Get Account" or message_text == "🎰 Get Another Account":
         await handle_get_account(update, user_id, used_data)
         return
     
-    # Handle Talk to Agent
     if message_text == "💬 Talk to Agent":
         await update.message.reply_text(
             f"💬 *Contact Our Agent*\n\n"
@@ -553,32 +312,22 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
     
-    # Handle My Accounts
     if message_text == "📋 My Accounts":
         await handle_my_accounts(update, user_id, used_data)
         return
     
-    # Handle Streak Challenge
-    if message_text == "🔥 Streak Challenge":
-        await show_streak(update, context)
-        return
-    
-    # Handle Deposit & Withdraw
     if message_text == "💳 Deposit & Withdraw":
         await show_deposit_withdraw_menu(update, context)
         return
     
-    # Handle Deposit
     if message_text == "💰 Deposit":
         await start_deposit(update, context)
         return
     
-    # Handle Withdraw
     if message_text == "💸 Withdraw":
         await start_withdraw(update, context)
         return
     
-    # Handle user states (deposit/withdraw steps)
     if user_id in user_states:
         state = user_states[user_id]
         action = state.get("action")
@@ -606,20 +355,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await process_withdraw_code(update, context)
                 return
     
-    # Handle streak task completion
-    if message_text.startswith("✅ Complete Day"):
-        await complete_task(update, context)
-        return
-    
-    if message_text == "📊 My Progress":
-        await show_progress(update, context)
-        return
-    
-    if message_text == "🏆 Claim VIP Reward":
-        await claim_vip_reward(update, context)
-        return
-    
-    # If unknown message
     await update.message.reply_text(
         "❌ *I don't understand that command.*\n\n"
         "Please use the buttons below:",
@@ -632,7 +367,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ============================================
 
 async def handle_get_account(update, user_id, used_data):
-    """Handle account distribution - 2 per day max"""
     today_count = get_user_today_count(user_id, used_data)
     
     if today_count >= 2:
@@ -695,7 +429,6 @@ async def handle_get_account(update, user_id, used_data):
     )
 
 async def handle_my_accounts(update, user_id, used_data):
-    """Handle My Accounts"""
     accounts = get_user_accounts(user_id, used_data)
     
     if not accounts:
@@ -732,258 +465,10 @@ async def handle_my_accounts(update, user_id, used_data):
     )
 
 # ============================================
-# STREAK CHALLENGE
-# ============================================
-
-async def show_streak(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Show user's current streak and tasks"""
-    user_id = str(update.effective_user.id)
-    streaks = load_streaks()
-    
-    if user_id not in streaks:
-        streaks[user_id] = {
-            "current_day": 0,
-            "completed_tasks": [],
-            "total_rewards": 0,
-            "last_completed": None,
-            "week": 1
-        }
-        save_streaks(streaks)
-    
-    user_streak = streaks[user_id]
-    current_day = user_streak.get("current_day", 0)
-    
-    next_day = current_day + 1
-    if next_day > 28:
-        keyboard = [
-            [KeyboardButton("🏆 Claim VIP Reward")],
-            [KeyboardButton("🔙 Back to Menu")]
-        ]
-        reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-        await update.message.reply_text(
-            "🏆 *CONGRATULATIONS!*\n\n"
-            "You've completed ALL 28 days of tasks! 🎉\n\n"
-            "🎁 *Your Rewards:*\n"
-            "• FREE VIP Account\n"
-            "• 20% Permanent Cashback\n"
-            "• 500 SAR Bonus\n"
-            "• Exclusive Agent Support\n\n"
-            "Click below to claim your VIP reward!",
-            parse_mode="Markdown",
-            reply_markup=reply_markup
-        )
-        return
-    
-    task = TASKS.get(next_day)
-    if not task:
-        await update.message.reply_text(
-            "❌ *Task not found!*\n\n"
-            "Please contact support.",
-            parse_mode="Markdown"
-        )
-        return
-    
-    week = task.get("week", 1)
-    reward = task.get("reward", 10)
-    
-    today = datetime.now().strftime("%Y-%m-%d")
-    today_completed = user_streak.get("last_completed") == today
-    
-    if today_completed:
-        keyboard = [
-            [KeyboardButton("📊 My Progress")],
-            [KeyboardButton("🔙 Back to Menu")]
-        ]
-        reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-        await update.message.reply_text(
-            f"✅ *Great job! You've completed today's task!*\n\n"
-            f"🔥 *Current Streak:* {current_day} days\n"
-            f"📅 *Day {next_day} waiting...*\n"
-            f"💰 *Total Rewards:* {user_streak.get('total_rewards', 0)} SAR\n\n"
-            f"⏳ Come back tomorrow for Day {next_day}!",
-            parse_mode="Markdown",
-            reply_markup=reply_markup
-        )
-        return
-    
-    keyboard = [
-        [KeyboardButton(f"✅ Complete Day {next_day} Task")],
-        [KeyboardButton("📊 My Progress")],
-        [KeyboardButton("🔙 Back to Menu")]
-    ]
-    reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-    
-    await update.message.reply_text(
-        f"🔥 *Daily Streak Challenge*\n\n"
-        f"📅 *Day {next_day} of 28*\n"
-        f"📆 *Week {week}*\n"
-        f"💰 *Daily Reward:* {reward} SAR\n\n"
-        f"📋 *Your Task:*\n"
-        f"✅ {task['task']}\n\n"
-        f"💡 *Total earned so far:* {user_streak.get('total_rewards', 0)} SAR\n"
-        f"🔥 *Current Streak:* {current_day} days\n\n"
-        f"Complete the task and click the button below!",
-        parse_mode="Markdown",
-        reply_markup=reply_markup
-    )
-
-async def complete_task(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Mark current day's task as complete"""
-    user_id = str(update.effective_user.id)
-    streaks = load_streaks()
-    
-    if user_id not in streaks:
-        await update.message.reply_text(
-            "❌ *No streak found!*\n\n"
-            "Use '🔥 Streak Challenge' to start your journey!",
-            parse_mode="Markdown"
-        )
-        return
-    
-    user_streak = streaks[user_id]
-    current_day = user_streak.get("current_day", 0)
-    next_day = current_day + 1
-    
-    if next_day > 28:
-        await update.message.reply_text(
-            "🏆 *You've completed ALL tasks!*\n\n"
-            "Claim your VIP reward!",
-            parse_mode="Markdown"
-        )
-        return
-    
-    today = datetime.now().strftime("%Y-%m-%d")
-    if user_streak.get("last_completed") == today:
-        await update.message.reply_text(
-            "✅ *You already completed today's task!*\n\n"
-            "Come back tomorrow for the next one!",
-            parse_mode="Markdown"
-        )
-        return
-    
-    task = TASKS.get(next_day, {"reward": 10})
-    reward = task.get("reward", 10)
-    
-    user_streak["current_day"] = next_day
-    user_streak["last_completed"] = today
-    user_streak["total_rewards"] = user_streak.get("total_rewards", 0) + reward
-    save_streaks(streaks)
-    
-    keyboard = [
-        [KeyboardButton("📊 My Progress")],
-        [KeyboardButton("🔙 Back to Menu")]
-    ]
-    reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-    
-    await update.message.reply_text(
-        f"🎉 *AMAZING! You completed Day {next_day}!*\n\n"
-        f"💰 *Reward Earned:* {reward} SAR\n"
-        f"🔥 *Streak:* {next_day} days\n"
-        f"📦 *Total Earned:* {user_streak.get('total_rewards', 0)} SAR\n\n"
-        f"📅 *Tomorrow's Task:*\n"
-        f"Day {next_day + 1} task will be available!\n\n"
-        f"Keep going! You're doing great! 💪",
-        parse_mode="Markdown",
-        reply_markup=reply_markup
-    )
-
-async def show_progress(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Show user's progress"""
-    user_id = str(update.effective_user.id)
-    streaks = load_streaks()
-    
-    if user_id not in streaks:
-        await update.message.reply_text(
-            "❌ *No progress found!*\n\n"
-            "Use '🔥 Streak Challenge' to start your journey!",
-            parse_mode="Markdown"
-        )
-        return
-    
-    user_streak = streaks[user_id]
-    current_day = user_streak.get("current_day", 0)
-    total_rewards = user_streak.get("total_rewards", 0)
-    
-    progress = min((current_day / 28) * 100, 100)
-    filled = int(progress / 10)
-    progress_bar = "█" * filled + "░" * (10 - filled)
-    
-    keyboard = [
-        [KeyboardButton("🔥 Continue Challenge")],
-        [KeyboardButton("🔙 Back to Menu")]
-    ]
-    reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-    
-    await update.message.reply_text(
-        f"📊 *Your Progress*\n\n"
-        f"📅 *Days Completed:* {current_day}/28\n"
-        f"💰 *Total Rewards:* {total_rewards} SAR\n"
-        f"🔥 *Progress:* {progress:.0f}%\n"
-        f"📊 `{progress_bar}`\n\n"
-        f"🏆 *Next Reward:*\n"
-        f"• {7 - (current_day % 7)} days until weekly bonus!\n"
-        f"• {28 - current_day} days until VIP Account!\n\n"
-        f"💪 Keep going! You're amazing!",
-        parse_mode="Markdown",
-        reply_markup=reply_markup
-    )
-
-async def claim_vip_reward(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Claim VIP reward after completing all tasks"""
-    user_id = str(update.effective_user.id)
-    streaks = load_streaks()
-    
-    if user_id not in streaks:
-        await update.message.reply_text(
-            "❌ *No progress found!*",
-            parse_mode="Markdown"
-        )
-        return
-    
-    user_streak = streaks[user_id]
-    current_day = user_streak.get("current_day", 0)
-    
-    if current_day < 28:
-        await update.message.reply_text(
-            f"❌ *You need to complete all 28 days first!*\n\n"
-            f"Current progress: {current_day}/28 days",
-            parse_mode="Markdown"
-        )
-        return
-    
-    # Check if already claimed
-    if user_streak.get("vip_claimed", False):
-        await update.message.reply_text(
-            "✅ *You've already claimed your VIP reward!*\n\n"
-            "Contact your agent for VIP support.",
-            parse_mode="Markdown"
-        )
-        return
-    
-    # Mark as claimed
-    user_streak["vip_claimed"] = True
-    save_streaks(streaks)
-    
-    await update.message.reply_text(
-        "🏆 *VIP REWARD CLAIMED!*\n\n"
-        "🎁 *You are now a VIP member!*\n\n"
-        "✅ *Benefits:*\n"
-        "• 20% Permanent Cashback\n"
-        "• Priority Support\n"
-        "• Exclusive Bonuses\n"
-        "• VIP Account\n\n"
-        "📞 Your agent will contact you shortly!\n"
-        f"Agent: {AGENT_USERNAME}",
-        parse_mode="Markdown",
-        reply_markup=get_main_menu_keyboard()
-    )
-
-# ============================================
 # DEPOSIT & WITHDRAW SYSTEM
 # ============================================
 
 async def show_deposit_withdraw_menu(update, context):
-    """Show deposit and withdraw options with available methods"""
     payment_methods = load_payment_methods()
     
     text = "💳 *Deposit & Withdrawal*\n\n"
@@ -1010,7 +495,6 @@ async def show_deposit_withdraw_menu(update, context):
 # --- Deposit Flow ---
 
 async def start_deposit(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Start deposit process"""
     user_id = str(update.effective_user.id)
     
     user_states[user_id] = {"action": "deposit", "step": "player_id"}
@@ -1024,7 +508,6 @@ async def start_deposit(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def process_deposit_player_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Process player ID input"""
     user_id = str(update.effective_user.id)
     player_id = update.message.text.strip()
     
@@ -1039,12 +522,11 @@ async def process_deposit_player_id(update: Update, context: ContextTypes.DEFAUL
     user_states[user_id]["player_id"] = player_id
     user_states[user_id]["step"] = "method"
     
-    # Show payment methods
     payment_methods = load_payment_methods()
     keyboard = []
     for key, method in payment_methods.items():
         keyboard.append([KeyboardButton(method["name"])])
-    keyboard.append([KeyboardButton("🔙 Back to Menu")])
+    keyboard.append(["🔙 Back to Menu"])
     reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
     
     await update.message.reply_text(
@@ -1057,14 +539,11 @@ async def process_deposit_player_id(update: Update, context: ContextTypes.DEFAUL
     )
 
 async def process_deposit_method(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Process payment method selection"""
     user_id = str(update.effective_user.id)
     method_name = update.message.text
     
-    # Load payment methods from file
     payment_methods = load_payment_methods()
     
-    # Find the method key
     method_key = None
     for key, method in payment_methods.items():
         if method["name"] == method_name:
@@ -1104,7 +583,6 @@ async def process_deposit_method(update: Update, context: ContextTypes.DEFAULT_T
     )
 
 async def process_deposit_amount(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Process amount input"""
     user_id = str(update.effective_user.id)
     amount_text = update.message.text.replace(" SAR", "").strip()
     
@@ -1141,10 +619,13 @@ async def process_deposit_amount(update: Update, context: ContextTypes.DEFAULT_T
     user_states[user_id]["amount"] = amount
     user_states[user_id]["step"] = "receipt"
     
+    payment_methods = load_payment_methods()
+    method_name = payment_methods[user_states[user_id]["method"]]["name"]
+    
     await update.message.reply_text(
         f"💰 *Deposit Process*\n\n"
         f"✅ Player ID: `{user_states[user_id]['player_id']}`\n"
-        f"✅ Method: {PAYMENT_METHODS[user_states[user_id]['method']]['name']}\n"
+        f"✅ Method: {method_name}\n"
         f"✅ Amount: {amount} SAR\n\n"
         "Step 4/4: Send receipt\n\n"
         "📸 Please send a screenshot or photo of your transfer receipt.\n\n"
@@ -1160,7 +641,6 @@ async def process_deposit_amount(update: Update, context: ContextTypes.DEFAULT_T
     )
 
 async def handle_receipt(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle receipt photo from user"""
     user_id = str(update.effective_user.id)
     
     if user_id not in user_states or user_states[user_id].get("action") != "deposit":
@@ -1216,8 +696,8 @@ async def handle_receipt(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await notify_accountant_deposit(update, context, deposit_id, deposits[deposit_id])
 
 async def notify_accountant_deposit(update, context, deposit_id, deposit_data):
-    """Send deposit request to accountant with photo"""
-    method_name = PAYMENT_METHODS[deposit_data["method"]]["name"]
+    payment_methods = load_payment_methods()
+    method_name = payment_methods[deposit_data["method"]]["name"]
     
     keyboard = [
         [
@@ -1238,7 +718,6 @@ async def notify_accountant_deposit(update, context, deposit_id, deposit_data):
         f"Please verify the transfer and respond:"
     )
     
-    # Send the message with buttons
     await context.bot.send_message(
         chat_id=ACCOUNTANT_ID,
         text=message,
@@ -1246,7 +725,6 @@ async def notify_accountant_deposit(update, context, deposit_id, deposit_data):
         reply_markup=reply_markup
     )
     
-    # Send the receipt photo separately
     if os.path.exists(deposit_data['receipt']):
         with open(deposit_data['receipt'], 'rb') as photo:
             await context.bot.send_photo(
@@ -1262,18 +740,16 @@ async def notify_accountant_deposit(update, context, deposit_id, deposit_data):
             parse_mode="Markdown"
         )
 
-
 # --- Withdraw Flow ---
 
 async def start_withdraw(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Start withdraw process"""
     user_id = str(update.effective_user.id)
     user_states[user_id] = {"action": "withdraw", "step": "method"}
     
     keyboard = []
     for key, method in WITHDRAW_METHODS.items():
         keyboard.append([KeyboardButton(method["name"])])
-    keyboard.append([KeyboardButton("🔙 Back to Menu")])
+    keyboard.append(["🔙 Back to Menu"])
     reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
     
     await update.message.reply_text(
@@ -1285,7 +761,6 @@ async def start_withdraw(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def process_withdraw_method(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Process withdrawal method selection"""
     user_id = str(update.effective_user.id)
     method_name = update.message.text
     
@@ -1313,7 +788,6 @@ async def process_withdraw_method(update: Update, context: ContextTypes.DEFAULT_
     await ask_withdraw_field(update, context)
 
 async def ask_withdraw_field(update, context):
-    """Ask for next withdrawal field"""
     user_id = str(update.effective_user.id)
     state = user_states[user_id]
     fields = state["fields"]
@@ -1341,7 +815,6 @@ async def ask_withdraw_field(update, context):
     )
 
 async def process_withdraw_field(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Process withdrawal field input"""
     user_id = str(update.effective_user.id)
     value = update.message.text.strip()
     
@@ -1359,7 +832,6 @@ async def process_withdraw_field(update: Update, context: ContextTypes.DEFAULT_T
     await ask_withdraw_field(update, context)
 
 async def ask_withdraw_code(update, context):
-    """Ask user for withdrawal code"""
     user_id = str(update.effective_user.id)
     state = user_states[user_id]
     state["step"] = "code"
@@ -1384,7 +856,6 @@ async def ask_withdraw_code(update, context):
     )
 
 async def process_withdraw_code(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Process withdrawal code input"""
     user_id = str(update.effective_user.id)
     code = update.message.text.strip()
     
@@ -1420,7 +891,6 @@ async def process_withdraw_code(update: Update, context: ContextTypes.DEFAULT_TY
     await notify_accountant_withdraw(update, context, withdraw_id, withdrawals[withdraw_id])
 
 async def notify_accountant_withdraw(update, context, withdraw_id, withdraw_data):
-    """Send withdrawal request to accountant"""
     method_name = WITHDRAW_METHODS[withdraw_data["method"]]["name"]
     details_text = "\n".join([f"• {k}: {v}" for k, v in withdraw_data["details"].items()])
     
@@ -1455,7 +925,6 @@ async def notify_accountant_withdraw(update, context, withdraw_id, withdraw_data
 # ============================================
 
 async def handle_accountant_action(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle accountant accept/reject actions"""
     query = update.callback_query
     await query.answer()
     
@@ -1525,7 +994,6 @@ async def handle_accountant_action(update: Update, context: ContextTypes.DEFAULT
             )
 
 async def process_rejection_reason(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Process rejection reason from accountant"""
     if "reject_deposit" in context.user_data:
         request_id = context.user_data.pop("reject_deposit")
         deposits = load_deposits()
@@ -1565,6 +1033,394 @@ async def process_rejection_reason(update: Update, context: ContextTypes.DEFAULT
             )
             
             await update.message.reply_text("✅ Rejection reason sent to user.")
+            return
+
+# ============================================
+# PAYMENT METHODS MANAGEMENT (BUTTON-BASED)
+# ============================================
+
+async def manage_payment_methods(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ADMIN_ID:
+        await update.message.reply_text("⛔ *Unauthorized!*", parse_mode="Markdown")
+        return
+    
+    admin_states.pop(str(update.effective_user.id), None)
+    
+    await update.message.reply_text(
+        "📋 *Payment Methods Management*\n\n"
+        "Select an option below:",
+        parse_mode="Markdown",
+        reply_markup=get_pm_menu_keyboard()
+    )
+
+async def handle_pm_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = str(update.effective_user.id)
+    message_text = update.message.text
+    
+    if update.effective_user.id != ADMIN_ID:
+        await update.message.reply_text("⛔ *Unauthorized!*", parse_mode="Markdown")
+        return
+    
+    if user_id in admin_states:
+        await handle_pm_state(update, context)
+        return
+    
+    if message_text == "📋 List Methods":
+        methods = load_payment_methods()
+        if not methods:
+            await update.message.reply_text("📭 *No payment methods available.*", parse_mode="Markdown")
+            return
+        
+        text = "📋 *Payment Methods*\n\n"
+        for key, method in methods.items():
+            text += f"🔹 *{method['name']}*\n"
+            text += f"   📌 ID: `{key}`\n"
+            text += f"   📋 Details: {method['details']}\n"
+            text += f"   📝 Fields: {', '.join(method['fields'])}\n\n"
+        
+        await update.message.reply_text(text, parse_mode="Markdown")
+        return
+    
+    elif message_text == "➕ Add Method":
+        admin_states[user_id] = {"action": "add", "step": "key"}
+        await update.message.reply_text(
+            "➕ *Add Payment Method*\n\n"
+            "Step 1/5: Enter a unique ID for this method\n\n"
+            "📝 *Example:* `barq`, `newpay`, `applepay`\n\n"
+            "This ID will be used to reference the method.\n\n"
+            "Type /cancel to cancel.",
+            parse_mode="Markdown",
+            reply_markup=get_back_to_menu_keyboard()
+        )
+        return
+    
+    elif message_text == "✏️ Edit Method":
+        methods = load_payment_methods()
+        if not methods:
+            await update.message.reply_text("📭 *No payment methods to edit.*", parse_mode="Markdown")
+            return
+        
+        keyboard = []
+        for key in methods.keys():
+            keyboard.append([KeyboardButton(key)])
+        keyboard.append(["🔙 Back to Menu"])
+        reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+        
+        admin_states[user_id] = {"action": "edit", "step": "select"}
+        
+        await update.message.reply_text(
+            "✏️ *Edit Payment Method*\n\n"
+            "Select the method you want to edit:",
+            parse_mode="Markdown",
+            reply_markup=reply_markup
+        )
+        return
+    
+    elif message_text == "🗑️ Delete Method":
+        methods = load_payment_methods()
+        if not methods:
+            await update.message.reply_text("📭 *No payment methods to delete.*", parse_mode="Markdown")
+            return
+        
+        keyboard = []
+        for key in methods.keys():
+            keyboard.append([KeyboardButton(key)])
+        keyboard.append(["🔙 Back to Menu"])
+        reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+        
+        admin_states[user_id] = {"action": "delete", "step": "select"}
+        
+        await update.message.reply_text(
+            "🗑️ *Delete Payment Method*\n\n"
+            "Select the method you want to delete:",
+            parse_mode="Markdown",
+            reply_markup=reply_markup
+        )
+        return
+
+async def handle_pm_state(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = str(update.effective_user.id)
+    message_text = update.message.text
+    state = admin_states[user_id]
+    action = state.get("action")
+    step = state.get("step")
+    methods = load_payment_methods()
+    
+    if message_text == "🔙 Back to Menu" or message_text == "/cancel":
+        admin_states.pop(user_id, None)
+        await update.message.reply_text(
+            "❌ *Cancelled!*",
+            parse_mode="Markdown",
+            reply_markup=get_pm_menu_keyboard()
+        )
+        return
+    
+    # === ADD METHOD FLOW ===
+    if action == "add":
+        if step == "key":
+            if not message_text.isalnum() and "_" not in message_text:
+                await update.message.reply_text(
+                    "❌ *Invalid ID!*\n\n"
+                    "Use only letters, numbers, and underscores.\n"
+                    "Example: `barq`, `new_pay`, `applepay`",
+                    parse_mode="Markdown"
+                )
+                return
+            
+            if message_text in methods:
+                await update.message.reply_text(
+                    f"❌ *ID `{message_text}` already exists!*\n\n"
+                    "Please choose a different ID.",
+                    parse_mode="Markdown"
+                )
+                return
+            
+            state["key"] = message_text
+            state["step"] = "name"
+            
+            await update.message.reply_text(
+                f"✅ ID: `{message_text}`\n\n"
+                "Step 2/5: Enter the display name\n\n"
+                "📝 *Example:* `💳 Barq Wallet`, `🏦 Bank Transfer`\n\n"
+                "This is what users will see.",
+                parse_mode="Markdown",
+                reply_markup=get_back_to_menu_keyboard()
+            )
+            return
+        
+        elif step == "name":
+            state["name"] = message_text
+            state["step"] = "details"
+            
+            await update.message.reply_text(
+                f"✅ Name: {message_text}\n\n"
+                "Step 3/5: Enter the payment details\n\n"
+                "📝 *Example:* `📱 Transfer to: 05XXXXXXXX`\n"
+                "You can use multiple lines with `\\n`\n\n"
+                "Enter the details:",
+                parse_mode="Markdown",
+                reply_markup=get_back_to_menu_keyboard()
+            )
+            return
+        
+        elif step == "details":
+            state["details"] = message_text
+            state["step"] = "fields_count"
+            
+            await update.message.reply_text(
+                f"✅ Details: {message_text}\n\n"
+                "Step 4/5: How many fields does this method need?\n\n"
+                "📝 *Examples:*\n"
+                "• Barq: 1 field (phone_number)\n"
+                "• Bank Transfer: 2 fields (phone_number, iban)\n\n"
+                "Choose a number:",
+                parse_mode="Markdown",
+                reply_markup=ReplyKeyboardMarkup(
+                    [["1", "2", "3"], ["4", "5"], ["🔙 Back to Menu"]],
+                    resize_keyboard=True
+                )
+            )
+            return
+        
+        elif step == "fields_count":
+            try:
+                count = int(message_text)
+                if count < 1 or count > 5:
+                    raise ValueError
+                state["fields_count"] = count
+                state["fields"] = []
+                state["field_index"] = 0
+                state["step"] = "fields"
+                
+                field_labels = {
+                    0: "📱 Phone number",
+                    1: "🏦 IBAN number",
+                    2: "🏛️ Bank name",
+                    3: "🔗 Wallet address",
+                    4: "👤 Full name",
+                    5: "📧 Email"
+                }
+                
+                await update.message.reply_text(
+                    f"✅ {count} fields selected.\n\n"
+                    f"Step 5/5: Enter field #{state['field_index'] + 1}\n\n"
+                    f"📝 *Examples:* {field_labels.get(0, '')}\n\n"
+                    "Enter the field name (e.g., `phone_number`, `iban`):",
+                    parse_mode="Markdown",
+                    reply_markup=get_back_to_menu_keyboard()
+                )
+                return
+            except ValueError:
+                await update.message.reply_text(
+                    "❌ *Invalid number!*\n\n"
+                    "Please enter a number between 1 and 5.",
+                    parse_mode="Markdown"
+                )
+                return
+        
+        elif step == "fields":
+            field = message_text.strip().lower().replace(" ", "_")
+            state["fields"].append(field)
+            state["field_index"] += 1
+            
+            if state["field_index"] >= state["fields_count"]:
+                key = state["key"]
+                methods[key] = {
+                    "name": state["name"],
+                    "details": state["details"],
+                    "fields": state["fields"]
+                }
+                save_payment_methods(methods)
+                
+                admin_states.pop(user_id, None)
+                
+                await update.message.reply_text(
+                    f"✅ *Payment Method Added!*\n\n"
+                    f"🔹 Name: {state['name']}\n"
+                    f"📌 ID: `{key}`\n"
+                    f"📋 Details: {state['details']}\n"
+                    f"📝 Fields: {', '.join(state['fields'])}\n\n"
+                    f"📦 *Total Methods:* {len(methods)}",
+                    parse_mode="Markdown",
+                    reply_markup=get_pm_menu_keyboard()
+                )
+                return
+            
+            field_labels = {
+                0: "📱 Phone number",
+                1: "🏦 IBAN number",
+                2: "🏛️ Bank name",
+                3: "🔗 Wallet address",
+                4: "👤 Full name",
+                5: "📧 Email"
+            }
+            
+            await update.message.reply_text(
+                f"✅ Field #{state['field_index']}: `{field}`\n\n"
+                f"Enter field #{state['field_index'] + 1}\n\n"
+                f"📝 *Examples:* {field_labels.get(state['field_index'], '')}",
+                parse_mode="Markdown",
+                reply_markup=get_back_to_menu_keyboard()
+            )
+            return
+    
+    # === EDIT METHOD FLOW ===
+    elif action == "edit":
+        if step == "select":
+            if message_text not in methods:
+                await update.message.reply_text(
+                    f"❌ *Method `{message_text}` not found!*\n\n"
+                    "Please select from the buttons below.",
+                    parse_mode="Markdown"
+                )
+                return
+            
+            state["edit_key"] = message_text
+            state["step"] = "field"
+            
+            method = methods[message_text]
+            keyboard = []
+            for field in method.keys():
+                keyboard.append([KeyboardButton(field)])
+            keyboard.append(["🔙 Back to Menu"])
+            reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+            
+            await update.message.reply_text(
+                f"✏️ *Editing: {method['name']}*\n\n"
+                f"📌 ID: `{message_text}`\n"
+                f"📋 Details: {method['details']}\n"
+                f"📝 Fields: {', '.join(method['fields'])}\n\n"
+                "Select which field to edit:",
+                parse_mode="Markdown",
+                reply_markup=reply_markup
+            )
+            return
+        
+        elif step == "field":
+            if message_text not in methods[state["edit_key"]]:
+                await update.message.reply_text(
+                    f"❌ *Field `{message_text}` not found!*\n\n"
+                    "Please select from the buttons below.",
+                    parse_mode="Markdown"
+                )
+                return
+            
+            state["edit_field"] = message_text
+            state["step"] = "value"
+            
+            current_value = methods[state["edit_key"]][message_text]
+            await update.message.reply_text(
+                f"✏️ *Editing: {state['edit_field']}*\n\n"
+                f"Current value: `{current_value}`\n\n"
+                "Enter the new value:",
+                parse_mode="Markdown",
+                reply_markup=get_back_to_menu_keyboard()
+            )
+            return
+        
+        elif step == "value":
+            key = state["edit_key"]
+            field = state["edit_field"]
+            methods[key][field] = message_text
+            save_payment_methods(methods)
+            
+            admin_states.pop(user_id, None)
+            
+            await update.message.reply_text(
+                f"✅ *Method Updated!*\n\n"
+                f"📌 ID: `{key}`\n"
+                f"📝 {field}: {message_text}",
+                parse_mode="Markdown",
+                reply_markup=get_pm_menu_keyboard()
+            )
+            return
+    
+    # === DELETE METHOD FLOW ===
+    elif action == "delete":
+        if step == "select":
+            if message_text not in methods:
+                await update.message.reply_text(
+                    f"❌ *Method `{message_text}` not found!*",
+                    parse_mode="Markdown"
+                )
+                return
+            
+            state["delete_key"] = message_text
+            state["step"] = "confirm"
+            
+            method = methods[message_text]
+            await update.message.reply_text(
+                f"🗑️ *Delete Method?*\n\n"
+                f"🔹 Name: {method['name']}\n"
+                f"📌 ID: `{message_text}`\n\n"
+                f"⚠️ *Are you sure?*\n"
+                "This action cannot be undone!",
+                parse_mode="Markdown",
+                reply_markup=ReplyKeyboardMarkup(
+                    [["✅ Yes, Delete"], ["❌ No, Cancel"]],
+                    resize_keyboard=True
+                )
+            )
+            return
+        
+        elif step == "confirm":
+            if message_text == "✅ Yes, Delete":
+                key = state["delete_key"]
+                del methods[key]
+                save_payment_methods(methods)
+                admin_states.pop(user_id, None)
+                await update.message.reply_text(
+                    f"✅ *Method `{key}` deleted!*",
+                    parse_mode="Markdown",
+                    reply_markup=get_pm_menu_keyboard()
+                )
+            else:
+                admin_states.pop(user_id, None)
+                await update.message.reply_text(
+                    "❌ *Deletion cancelled!*",
+                    parse_mode="Markdown",
+                    reply_markup=get_pm_menu_keyboard()
+                )
             return
 
 # ============================================
@@ -1828,16 +1684,9 @@ def main():
     app.add_handler(CommandHandler("clearaccounts", clear_accounts))
     app.add_handler(CommandHandler("pm", manage_payment_methods))
     
-    # Handle inline button callbacks
     app.add_handler(CallbackQueryHandler(button_handler))
-    
-    # Handle messages from reply keyboard
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    
-    # Handle photos for receipts
     app.add_handler(MessageHandler(filters.PHOTO, handle_message))
-    
-    # Handle rejection reasons from accountant
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, process_rejection_reason))
     
     print("=" * 50)
