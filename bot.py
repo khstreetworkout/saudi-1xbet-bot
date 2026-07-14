@@ -991,7 +991,7 @@ async def handle_video_buttons(update: Update, context: ContextTypes.DEFAULT_TYP
         if not videos:
             await update.message.reply_text(t(user_id, "no_videos"), parse_mode="Markdown")
             return
-        video_list = "\n".join([f"🆔 ID: `{vid}`\n🎬 Title: {data['title']}\n📅 Added: {data.get('created_at', 'Unknown')}\n" for vid, data in videos.items()])
+        video_list = "\n".join([t(user_id, "video_list_item", vid=vid, title=data['title'], date=data.get('created_at', 'Unknown')) for vid, data in videos.items()])
         await update.message.reply_text(t(user_id, "video_list_title", video_list=video_list), parse_mode="Markdown")
         return
 
@@ -1024,7 +1024,7 @@ async def handle_video_buttons(update: Update, context: ContextTypes.DEFAULT_TYP
         for data in videos.values():
             if data['title'] == title:
                 try:
-                    caption = f"🎬 *{data['title']}*\n\n📹 Tutorial Video\n📅 Added: {data.get('created_at', 'Unknown')}"
+                    caption = t(user_id, "video_play_caption", title=data['title'], date=data.get('created_at', 'Unknown'))
                     await update.message.reply_video(video=data['file_id'], caption=caption, parse_mode="Markdown")
                     return
                 except Exception as e:
@@ -1213,14 +1213,14 @@ async def handle_receipt(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await notify_accountant_deposit(update, context, deposit_id, deposits[deposit_id])
 
 async def notify_accountant_deposit(update, context, deposit_id, deposit_data):
-    user_id = deposit_data["user_id"]
+    admin_id = ACCOUNTANT_ID  # Use admin's language
     methods = load_payment_methods()
     method_name = methods[deposit_data["method"]]["name"]
     keyboard = [
-        [InlineKeyboardButton(t(user_id, "deposit_accept"), callback_data=f"deposit_accept_{deposit_id}"),
-         InlineKeyboardButton(t(user_id, "deposit_reject"), callback_data=f"deposit_reject_{deposit_id}")]
+        [InlineKeyboardButton(t(admin_id, "deposit_accept"), callback_data=f"deposit_accept_{deposit_id}"),
+         InlineKeyboardButton(t(admin_id, "deposit_reject"), callback_data=f"deposit_reject_{deposit_id}")]
     ]
-    message = t(user_id, "new_deposit",
+    message = t(admin_id, "new_deposit",
                 deposit_id=deposit_id,
                 username=deposit_data['username'],
                 player_id=deposit_data['player_id'],
@@ -1230,7 +1230,8 @@ async def notify_accountant_deposit(update, context, deposit_id, deposit_data):
     await context.bot.send_message(chat_id=ACCOUNTANT_ID, text=message, parse_mode=None, reply_markup=InlineKeyboardMarkup(keyboard))
     if os.path.exists(deposit_data['receipt']):
         with open(deposit_data['receipt'], 'rb') as photo:
-            await context.bot.send_photo(chat_id=ACCOUNTANT_ID, photo=photo, caption=f"📸 Receipt for Deposit {deposit_id}")
+            caption = t(admin_id, "receipt_caption", deposit_id=deposit_id)
+            await context.bot.send_photo(chat_id=ACCOUNTANT_ID, photo=photo, caption=caption)
 
 # --- Withdraw Flow ---
 
@@ -1314,7 +1315,7 @@ async def ask_withdraw_code(update, context):
     for data in videos.values():
         if "Withdrawal" in data['title'] or "withdrawal" in data['title'].lower():
             try:
-                caption = f"🎬 *{data['title']}*\n\n📹 Watch this tutorial for step-by-step instructions!"
+                caption = t(user_id, "withdraw_video_caption", title=data['title'])
                 await update.message.reply_video(video=data['file_id'], caption=caption, parse_mode="Markdown")
             except Exception as e:
                 print(f"Error sending withdrawal video: {e}")
@@ -1354,15 +1355,15 @@ async def process_withdraw_code(update: Update, context: ContextTypes.DEFAULT_TY
 
 async def notify_accountant_withdraw(update, context, withdraw_id, withdraw_data):
     try:
-        user_id = withdraw_data["user_id"]
+        admin_id = ACCOUNTANT_ID
         methods = load_payment_methods()
         method_name = methods[withdraw_data["method"]]["name"]
         details_text = "\n".join([f"• {k}: {v}" for k, v in withdraw_data["details"].items()])
         keyboard = [
-            [InlineKeyboardButton(t(user_id, "withdraw_accept"), callback_data=f"withdraw_accept_{withdraw_id}"),
-             InlineKeyboardButton(t(user_id, "withdraw_reject"), callback_data=f"withdraw_reject_{withdraw_id}")]
+            [InlineKeyboardButton(t(admin_id, "withdraw_accept"), callback_data=f"withdraw_accept_{withdraw_id}"),
+             InlineKeyboardButton(t(admin_id, "withdraw_reject"), callback_data=f"withdraw_reject_{withdraw_id}")]
         ]
-        message = t(user_id, "new_withdraw",
+        message = t(admin_id, "new_withdraw",
                     withdraw_id=withdraw_id,
                     username=withdraw_data['username'],
                     player_id=withdraw_data.get('player_id', 'N/A'),
@@ -1389,11 +1390,12 @@ async def handle_accountant_action(update: Update, context: ContextTypes.DEFAULT
     action = parts[1]
     type_ = parts[0]
     request_id = "_".join(parts[2:])
+    admin_id = update.effective_user.id  # The admin who clicked
 
     if type_ == "deposit":
         deposits = load_deposits()
         if request_id not in deposits:
-            await query.edit_message_text("❌ Deposit request not found!")
+            await query.edit_message_text(t(admin_id, "deposit_not_found"))
             return
         if action == "accept":
             deposits[request_id]["status"] = "completed"
@@ -1404,29 +1406,29 @@ async def handle_accountant_action(update: Update, context: ContextTypes.DEFAULT
                 text=t(user_id, "deposit_confirmed", amount=deposits[request_id]['amount']),
                 parse_mode="Markdown"
             )
-            await query.edit_message_text(t(user_id, "deposit_accept_success"))
+            await query.edit_message_text(t(admin_id, "deposit_accept_success"))
         else:
             context.user_data["reject_deposit"] = request_id
-            await query.edit_message_text(t(user_id, "deposit_reject_prompt", request_id=request_id), parse_mode="Markdown")
+            await query.edit_message_text(t(admin_id, "deposit_reject_prompt", request_id=request_id), parse_mode="Markdown")
 
     elif type_ == "withdraw":
         withdrawals = load_withdrawals()
         if request_id not in withdrawals:
-            await query.edit_message_text(t(user_id, "withdraw_not_found"))
+            await query.edit_message_text(t(admin_id, "withdraw_not_found"))
             return
         if action == "accept":
-            admin_states[str(update.effective_user.id)] = {
+            admin_states[str(admin_id)] = {
                 "action": "withdraw_amount",
                 "withdraw_id": request_id
             }
             await query.edit_message_text(
-                t(user_id, "withdraw_accept_prompt", request_id=request_id),
+                t(admin_id, "withdraw_accept_prompt", request_id=request_id),
                 parse_mode="Markdown"
             )
         else:
             context.user_data["reject_withdraw"] = request_id
-            await query.edit_message_text(t(user_id, "withdraw_reject_prompt", request_id=request_id), parse_mode="Markdown")
-
+            await query.edit_message_text(t(admin_id, "withdraw_reject_prompt", request_id=request_id), parse_mode="Markdown")
+            
 async def process_withdraw_amount(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
     amount_text = update.message.text.strip()
@@ -1541,11 +1543,11 @@ async def handle_pm_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not methods:
             await update.message.reply_text(t(user_id, "no_methods"), parse_mode="Markdown")
             return
-        text = "📋 *Payment Methods*\n\n"
+        methods_text = ""
         for key, method in methods.items():
             details = "\n".join([f"   📋 {f}: {v}" for f, v in method["details"].items()])
-            text += f"🔹 *{method['name']}*\n   📌 ID: `{key}`\n   📝 Fields: {', '.join(method['fields'])}\n{details}\n\n"
-        await update.message.reply_text(text, parse_mode="Markdown")
+            methods_text += f"🔹 *{method['name']}*\n   📌 ID: `{key}`\n   📝 Fields: {', '.join(method['fields'])}\n{details}\n\n"
+        await update.message.reply_text(t(user_id, "pm_list", methods_list=methods_text), parse_mode="Markdown")
         return
 
     elif message_text == t(user_id, "add_method"):
