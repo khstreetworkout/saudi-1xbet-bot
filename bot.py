@@ -22,12 +22,12 @@ from user_language import get_user_language, set_user_language, load_languages
 # ============================================
 BOT_TOKEN = "8978819633:AAF9si6gH_sqvxC4uExZdwIK0gSkx8ToLq8"
 ADMIN_ID = 6012442109
-ACCOUNTANT_ID = 6012442109  # Can be same as ADMIN_ID, change if needed
+ACCOUNTANT_ID = 6012442109
 AGENT_USERNAME = "@Saudi_1xbet_agent"
-CASHBACK_PERCENT = 0.25  # 25% cashback
+CASHBACK_PERCENT = 0.25
 
 # ============================================
-# DATA DIRECTORY - Persistent storage on Railway
+# DATA DIRECTORY
 # ============================================
 if os.path.exists("/app/data"):
     DATA_DIR = "/app/data"
@@ -41,6 +41,7 @@ WITHDRAW_FILE = os.path.join(DATA_DIR, "withdrawals.json")
 PAYMENT_METHODS_FILE = os.path.join(DATA_DIR, "payment_methods.json")
 VIDEOS_FILE = os.path.join(DATA_DIR, "videos.json")
 SHARES_FILE = os.path.join(DATA_DIR, "shares.json")
+POST_STATES_FILE = os.path.join(DATA_DIR, "post_states.json")
 
 # ============================================
 # FILE HANDLING
@@ -86,7 +87,6 @@ def save_withdrawals(withdrawals):
         json.dump(withdrawals, f, indent=2)
 
 def load_payment_methods():
-    """Load payment methods from file. Returns empty dict if file doesn't exist."""
     if os.path.exists(PAYMENT_METHODS_FILE):
         try:
             with open(PAYMENT_METHODS_FILE, 'r') as f:
@@ -124,14 +124,28 @@ def save_shares(shares):
     with open(SHARES_FILE, 'w') as f:
         json.dump(shares, f, indent=2)
 
+def load_post_states():
+    if os.path.exists(POST_STATES_FILE):
+        try:
+            with open(POST_STATES_FILE, 'r') as f:
+                return json.load(f)
+        except:
+            return {}
+    return {}
+
+def save_post_states(states):
+    with open(POST_STATES_FILE, 'w') as f:
+        json.dump(states, f, indent=2)
+
 # ============================================
 # USER STATE STORAGE
 # ============================================
 user_states = {}
 admin_states = {}
+post_states = {}
 
 # ============================================
-# HELPER FUNCTIONS - Handle both old and new data formats
+# HELPER FUNCTIONS
 # ============================================
 
 def get_user_today_count(user_id, used_data):
@@ -155,7 +169,6 @@ def get_user_accounts(user_id, used_data):
         return [a.get("account") for a in entry.get("accounts", [])]
 
 def update_user_data(user_id, username, account=None):
-    """Save user data in new format, converting old format if needed."""
     used = load_used()
     if user_id in used and isinstance(used[user_id], list):
         old_accounts = used[user_id]
@@ -172,11 +185,11 @@ def update_user_data(user_id, username, account=None):
     save_used(used)
 
 # ============================================
-# KEYBOARD FUNCTIONS - now accept user_id for translations
+# KEYBOARD FUNCTIONS
 # ============================================
 def get_main_menu_keyboard(user_id=None):
     if user_id is None:
-        user_id = 0  # default to English
+        user_id = 0
     return ReplyKeyboardMarkup([
         [t(user_id, "get_account"), t(user_id, "talk_to_agent")],
         [t(user_id, "my_accounts"), t(user_id, "deposit_withdraw")],
@@ -193,9 +206,9 @@ def get_admin_menu_keyboard(user_id=None):
         [t(user_id, "my_accounts"), t(user_id, "deposit_withdraw")],
         [t(user_id, "video_tutorials")],
         [t(user_id, "share_bot")],
-        [t(user_id, "stats"), t(user_id, "list_accounts")],
-        [t(user_id, "add_accounts"), t(user_id, "payment_methods")],
-        [t(user_id, "back_to_menu")]
+        ["📝 Add Post", t(user_id, "stats")],
+        [t(user_id, "list_accounts"), t(user_id, "add_accounts")],
+        [t(user_id, "payment_methods"), t(user_id, "back_to_menu")]
     ], resize_keyboard=True)
 
 def get_back_to_menu_keyboard(user_id=None):
@@ -255,7 +268,6 @@ def get_stats_menu_keyboard(user_id=None):
 # ============================================
 
 async def language_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Show language selection menu"""
     user_id = update.effective_user.id
     keyboard = [
         [InlineKeyboardButton(t(user_id, "english"), callback_data="lang_en")],
@@ -272,15 +284,13 @@ async def language_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     user_id = query.from_user.id
-    lang = query.data.split("_")[1]  # lang_en or lang_ar
+    lang = query.data.split("_")[1]
     set_user_language(user_id, lang)
-    # Send confirmation in selected language
     if lang == "ar":
         msg = t(user_id, "language_saved_ar")
     else:
         msg = t(user_id, "language_saved")
     await query.message.reply_text(msg, parse_mode="Markdown")
-    # Show main menu in selected language
     await show_main_menu_from_callback(query, context)
 
 async def show_main_menu_from_callback(query, context):
@@ -301,26 +311,20 @@ async def show_main_menu_from_callback(query, context):
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    # Check if user has language set
-    lang = get_user_language(user_id)
-    if not lang or lang == "en":  # default to English, but still show language selection on first start?
-    # We'll show language selection if no language stored
-        languages = load_languages()
-        if str(user_id) not in languages:
-            # Show language selection
-            keyboard = [
-                [InlineKeyboardButton("🇬🇧 English", callback_data="lang_en")],
-                [InlineKeyboardButton("🇸🇦 العربية", callback_data="lang_ar")]
-            ]
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            await update.message.reply_text(
-                t(user_id, "language_selection"),
-                parse_mode="Markdown",
-                reply_markup=reply_markup
-            )
-            return
+    languages = load_languages()
+    if str(user_id) not in languages:
+        keyboard = [
+            [InlineKeyboardButton("🇬🇧 English", callback_data="lang_en")],
+            [InlineKeyboardButton("🇸🇦 العربية", callback_data="lang_ar")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await update.message.reply_text(
+            t(user_id, "language_selection"),
+            parse_mode="Markdown",
+            reply_markup=reply_markup
+        )
+        return
 
-    # Proceed with subscription check and main menu
     is_member = await is_user_member(user_id, "saudi_1xbet_accounts", context)
     if not is_member:
         keyboard = [
@@ -379,10 +383,463 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 reply_markup=InlineKeyboardMarkup(keyboard)
             )
         return
-    # Handle language callback
     if query.data.startswith("lang_"):
         await language_callback(update, context)
         return
+
+# ============================================
+# ADMIN POST CREATION SYSTEM
+# ============================================
+
+async def add_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Start the post creation process"""
+    user_id = str(update.effective_user.id)
+    
+    if update.effective_user.id != ADMIN_ID:
+        await update.message.reply_text("⛔ *Unauthorized!*", parse_mode="Markdown")
+        return
+    
+    post_states[user_id] = {"step": "content"}
+    await update.message.reply_text(
+        "📝 *Create a New Post*\n\n"
+        "*Step 1/6:* Send me the post content\n\n"
+        "You can send:\n"
+        "• 📝 Text message\n"
+        "• 🖼️ Photo (with or without caption)\n"
+        "• 🎥 Video (with or without caption)\n\n"
+        "Type /cancel to cancel.",
+        parse_mode="Markdown",
+        reply_markup=ReplyKeyboardMarkup([["🔙 Cancel Post"]], resize_keyboard=True)
+    )
+
+async def process_post_content(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle content submission (text, photo, video)"""
+    user_id = str(update.effective_user.id)
+    
+    if user_id not in post_states:
+        return
+    
+    if post_states[user_id].get("step") != "content":
+        return
+    
+    if update.message.text and update.message.text == "🔙 Cancel Post":
+        await cancel_post(update, context)
+        return
+    
+    if update.message.text:
+        post_states[user_id]["content_type"] = "text"
+        post_states[user_id]["text"] = update.message.text
+        post_states[user_id]["caption"] = None
+    elif update.message.photo:
+        post_states[user_id]["content_type"] = "photo"
+        post_states[user_id]["file_id"] = update.message.photo[-1].file_id
+        post_states[user_id]["caption"] = update.message.caption
+    elif update.message.video:
+        post_states[user_id]["content_type"] = "video"
+        post_states[user_id]["file_id"] = update.message.video.file_id
+        post_states[user_id]["caption"] = update.message.caption
+    elif update.message.document:
+        post_states[user_id]["content_type"] = "document"
+        post_states[user_id]["file_id"] = update.message.document.file_id
+        post_states[user_id]["caption"] = update.message.caption
+    else:
+        await update.message.reply_text("❌ Please send text, photo, or video.")
+        return
+    
+    post_states[user_id]["step"] = "button_count"
+    await update.message.reply_text(
+        "✅ *Content Received!*\n\n"
+        "*Step 2/6:* How many buttons do you want?\n"
+        "Choose a number from 0 to 9:",
+        parse_mode="Markdown",
+        reply_markup=ReplyKeyboardMarkup(
+            [["0", "1", "2", "3", "4", "5"], ["6", "7", "8", "9"]],
+            resize_keyboard=True
+        )
+    )
+
+async def process_button_count(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle button count selection"""
+    user_id = str(update.effective_user.id)
+    
+    if user_id not in post_states:
+        return
+    
+    if post_states[user_id].get("step") != "button_count":
+        return
+    
+    if update.message.text == "🔙 Cancel Post":
+        await cancel_post(update, context)
+        return
+    
+    try:
+        count = int(update.message.text)
+        if count < 0 or count > 9:
+            raise ValueError
+    except:
+        await update.message.reply_text("❌ Please enter a number between 0 and 9.")
+        return
+    
+    if count == 0:
+        post_states[user_id]["buttons"] = []
+        post_states[user_id]["step"] = "confirm"
+        await show_confirmation(update, context)
+        return
+    
+    post_states[user_id]["button_count"] = count
+    post_states[user_id]["buttons"] = []
+    post_states[user_id]["current_button"] = 0
+    post_states[user_id]["step"] = "button_config"
+    await ask_button_config(update, context)
+
+async def ask_button_config(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Ask for button configuration"""
+    user_id = str(update.effective_user.id)
+    state = post_states[user_id]
+    current = state["current_button"]
+    total = state["button_count"]
+    
+    keyboard = ReplyKeyboardMarkup([
+        ["🔗 URL", "📋 Callback Data"],
+        ["🌐 Web App", "👤 User"],
+        ["🤖 Bot", "🔄 Switch Inline"],
+        ["🔙 Cancel Post"]
+    ], resize_keyboard=True)
+    
+    await update.message.reply_text(
+        f"*Button {current + 1} of {total}*\n\n"
+        "Step 3/6: Select the button type:\n\n"
+        "• **URL** - Opens a website\n"
+        "• **Callback Data** - Sends data to bot (e.g., claim_bonus)\n"
+        "• **Web App** - Opens a Mini App\n"
+        "• **User** - Opens a user profile\n"
+        "• **Bot** - Opens a bot chat\n"
+        "• **Switch Inline** - Switches to inline mode",
+        parse_mode="Markdown",
+        reply_markup=keyboard
+    )
+
+async def process_button_type(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle button type selection"""
+    user_id = str(update.effective_user.id)
+    
+    if user_id not in post_states:
+        return
+    
+    if post_states[user_id].get("step") != "button_config":
+        return
+    
+    if update.message.text == "🔙 Cancel Post":
+        await cancel_post(update, context)
+        return
+    
+    button_type_map = {
+        "🔗 URL": "url",
+        "📋 Callback Data": "callback_data",
+        "🌐 Web App": "web_app",
+        "👤 User": "user",
+        "🤖 Bot": "bot",
+        "🔄 Switch Inline": "switch_inline_query"
+    }
+    
+    button_type = button_type_map.get(update.message.text)
+    if not button_type:
+        await update.message.reply_text("❌ Please select a valid button type.")
+        return
+    
+    post_states[user_id]["current_button_type"] = button_type
+    post_states[user_id]["step"] = "button_name"
+    
+    await update.message.reply_text(
+        f"*Button {post_states[user_id]['current_button'] + 1} of {post_states[user_id]['button_count']}*\n\n"
+        "Step 4/6: Enter the button text (display name):\n\n"
+        "Example: `🎰 Get Account`",
+        parse_mode="Markdown",
+        reply_markup=ReplyKeyboardMarkup([["🔙 Cancel Post"]], resize_keyboard=True)
+    )
+
+async def process_button_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle button name entry"""
+    user_id = str(update.effective_user.id)
+    
+    if user_id not in post_states:
+        return
+    
+    if post_states[user_id].get("step") != "button_name":
+        return
+    
+    if update.message.text == "🔙 Cancel Post":
+        await cancel_post(update, context)
+        return
+    
+    post_states[user_id]["current_button_name"] = update.message.text
+    post_states[user_id]["step"] = "button_value"
+    
+    button_type = post_states[user_id]["current_button_type"]
+    examples = {
+        "url": "Example: `https://t.me/yourbot`",
+        "callback_data": "Example: `claim_bonus` or `get_account`",
+        "web_app": "Example: `https://your-app.com`",
+        "user": "Example: `@username`",
+        "bot": "Example: `@yourbot`",
+        "switch_inline_query": "Example: `text to search`"
+    }
+    
+    await update.message.reply_text(
+        f"*Button {post_states[user_id]['current_button'] + 1} of {post_states[user_id]['button_count']}*\n\n"
+        f"Step 5/6: Enter the button value:\n\n"
+        f"📌 *Type:* `{button_type}`\n"
+        f"{examples.get(button_type, '')}\n\n"
+        "Type the value:",
+        parse_mode="Markdown",
+        reply_markup=ReplyKeyboardMarkup([["🔙 Cancel Post"]], resize_keyboard=True)
+    )
+
+async def process_button_value(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle button value entry and save button"""
+    user_id = str(update.effective_user.id)
+    
+    if user_id not in post_states:
+        return
+    
+    if post_states[user_id].get("step") != "button_value":
+        return
+    
+    if update.message.text == "🔙 Cancel Post":
+        await cancel_post(update, context)
+        return
+    
+    state = post_states[user_id]
+    
+    button_data = {
+        "text": state["current_button_name"],
+        "type": state["current_button_type"],
+        "value": update.message.text
+    }
+    state["buttons"].append(button_data)
+    state["current_button"] += 1
+    
+    if state["current_button"] >= state["button_count"]:
+        state["step"] = "confirm"
+        await show_confirmation(update, context)
+    else:
+        await ask_button_config(update, context)
+
+async def show_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Show post preview and ask for confirmation"""
+    user_id = str(update.effective_user.id)
+    state = post_states[user_id]
+    
+    preview_text = "📋 *Post Preview*\n\n"
+    
+    if state.get("content_type") == "text":
+        preview_text += f"📝 *Text:*\n{state['text']}\n\n"
+    else:
+        preview_text += f"🖼️ *Media Type:* {state['content_type']}\n"
+        if state.get("caption"):
+            preview_text += f"📝 *Caption:*\n{state['caption']}\n\n"
+    
+    if state.get("buttons"):
+        preview_text += "🔘 *Buttons:*\n"
+        for i, btn in enumerate(state["buttons"]):
+            preview_text += f"  {i+1}. {btn['text']} → {btn['type']}: {btn['value']}\n"
+    else:
+        preview_text += "📌 No buttons\n"
+    
+    preview_text += "\n📤 *Send to:*\n• 📢 Channel: @saudi_1xbet_accounts\n• 👥 Group: 1xbet Saudi Arabia chat\n\n"
+    preview_text += "Choose an option below:"
+    
+    keyboard = ReplyKeyboardMarkup([
+        ["✅ Confirm & Post", "✏️ Edit Content"],
+        ["🔘 Edit Buttons", "🔙 Cancel Post"]
+    ], resize_keyboard=True)
+    
+    await update.message.reply_text(
+        preview_text,
+        parse_mode="Markdown",
+        reply_markup=keyboard
+    )
+
+async def confirm_and_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Post to channel and group"""
+    user_id = str(update.effective_user.id)
+    
+    if user_id not in post_states:
+        return
+    
+    state = post_states[user_id]
+    
+    # Build buttons
+    keyboard = []
+    for btn in state.get("buttons", []):
+        button = None
+        if btn["type"] == "url":
+            button = InlineKeyboardButton(btn["text"], url=btn["value"])
+        elif btn["type"] == "callback_data":
+            button = InlineKeyboardButton(btn["text"], callback_data=btn["value"])
+        elif btn["type"] == "web_app":
+            button = InlineKeyboardButton(btn["text"], web_app={"url": btn["value"]})
+        elif btn["type"] == "user":
+            button = InlineKeyboardButton(btn["text"], url=f"tg://user?id={btn['value']}")
+        elif btn["type"] == "bot":
+            button = InlineKeyboardButton(btn["text"], url=f"t.me/{btn['value'].replace('@', '')}")
+        elif btn["type"] == "switch_inline_query":
+            button = InlineKeyboardButton(btn["text"], switch_inline_query=btn["value"])
+        
+        if button:
+            keyboard.append([button])
+    
+    reply_markup = InlineKeyboardMarkup(keyboard) if keyboard else None
+    
+    # Prepare message
+    if state["content_type"] == "text":
+        text = state["text"]
+        caption = None
+    else:
+        text = state.get("caption") or ""
+        caption = text
+        if len(caption) > 1000:
+            caption = caption[:997] + "..."
+        text = None
+    
+    # ============================================
+    # SEND TO CHANNEL
+    # ============================================
+    try:
+        if state["content_type"] == "text":
+            await context.bot.send_message(
+                chat_id="@saudi_1xbet_accounts",
+                text=text,
+                reply_markup=reply_markup,
+                parse_mode="Markdown"
+            )
+        else:
+            if state["content_type"] == "photo":
+                await context.bot.send_photo(
+                    chat_id="@saudi_1xbet_accounts",
+                    photo=state["file_id"],
+                    caption=caption,
+                    reply_markup=reply_markup,
+                    parse_mode="Markdown"
+                )
+            elif state["content_type"] == "video":
+                await context.bot.send_video(
+                    chat_id="@saudi_1xbet_accounts",
+                    video=state["file_id"],
+                    caption=caption,
+                    reply_markup=reply_markup,
+                    parse_mode="Markdown"
+                )
+            elif state["content_type"] == "document":
+                await context.bot.send_document(
+                    chat_id="@saudi_1xbet_accounts",
+                    document=state["file_id"],
+                    caption=caption,
+                    reply_markup=reply_markup,
+                    parse_mode="Markdown"
+                )
+        
+        # ============================================
+        # SEND TO GROUP
+        # ============================================
+        GROUP_CHAT_ID = -1004309440596  # ✅ Your group ID
+        
+        try:
+            if state["content_type"] == "text":
+                await context.bot.send_message(
+                    chat_id=GROUP_CHAT_ID,
+                    text=text,
+                    reply_markup=reply_markup,
+                    parse_mode="Markdown"
+                )
+            else:
+                if state["content_type"] == "photo":
+                    await context.bot.send_photo(
+                        chat_id=GROUP_CHAT_ID,
+                        photo=state["file_id"],
+                        caption=caption,
+                        reply_markup=reply_markup,
+                        parse_mode="Markdown"
+                    )
+                elif state["content_type"] == "video":
+                    await context.bot.send_video(
+                        chat_id=GROUP_CHAT_ID,
+                        video=state["file_id"],
+                        caption=caption,
+                        reply_markup=reply_markup,
+                        parse_mode="Markdown"
+                    )
+                elif state["content_type"] == "document":
+                    await context.bot.send_document(
+                        chat_id=GROUP_CHAT_ID,
+                        document=state["file_id"],
+                        caption=caption,
+                        reply_markup=reply_markup,
+                        parse_mode="Markdown"
+                    )
+        except Exception as e:
+            print(f"Error sending to group: {e}")
+            await update.message.reply_text(f"⚠️ Error sending to group: {e}")
+        
+        # ============================================
+        # SUCCESS CONFIRMATION
+        # ============================================
+        await update.message.reply_text(
+            f"✅ *Post Published Successfully!*\n\n"
+            f"📢 Sent to:\n"
+            f"• ✅ Channel: @saudi_1xbet_accounts\n"
+            f"• ✅ Group: 1xbet Saudi Arabia chat\n\n"
+            f"🔘 Buttons: {len(keyboard)}",
+            parse_mode="Markdown",
+            reply_markup=get_admin_menu_keyboard(user_id)
+        )
+        
+    except Exception as e:
+        await update.message.reply_text(f"❌ Error: {e}")
+    
+    # Clean up
+    post_states.pop(user_id, None)
+
+async def edit_content(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Allow editing content"""
+    user_id = str(update.effective_user.id)
+    if user_id in post_states:
+        post_states[user_id]["step"] = "content"
+        await update.message.reply_text(
+            "✏️ *Edit Content*\n\nSend the new content:",
+            parse_mode="Markdown"
+        )
+
+async def edit_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Reset button configuration"""
+    user_id = str(update.effective_user.id)
+    if user_id in post_states:
+        post_states[user_id]["buttons"] = []
+        post_states[user_id]["current_button"] = 0
+        post_states[user_id]["step"] = "button_count"
+        await update.message.reply_text(
+            "✏️ *Edit Buttons*\n\nHow many buttons do you want? (0-9)",
+            parse_mode="Markdown",
+            reply_markup=ReplyKeyboardMarkup(
+                [["0", "1", "2", "3", "4", "5"], ["6", "7", "8", "9"]],
+                resize_keyboard=True
+            )
+        )
+
+async def cancel_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Cancel the post creation"""
+    user_id = str(update.effective_user.id)
+    post_states.pop(user_id, None)
+    await update.message.reply_text(
+        "❌ *Post Creation Cancelled!*",
+        parse_mode="Markdown",
+        reply_markup=get_admin_menu_keyboard(user_id)
+    )
+
+async def get_group_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Get the ID of the group where command is sent"""
+    chat_id = update.effective_chat.id
+    await update.message.reply_text(f"🆔 *Group ID:* `{chat_id}`", parse_mode="Markdown")
 
 # ============================================
 # MESSAGE HANDLER
@@ -392,6 +849,42 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
     used_data = load_used()
     await update.message.chat.send_action(action="typing")
+
+    # ============================================
+    # POST CREATION FLOW
+    # ============================================
+    if user_id in post_states:
+        state = post_states[user_id]
+        step = state.get("step")
+        
+        if step == "content":
+            await process_post_content(update, context)
+            return
+        elif step == "button_count":
+            await process_button_count(update, context)
+            return
+        elif step == "button_config":
+            await process_button_type(update, context)
+            return
+        elif step == "button_name":
+            await process_button_name(update, context)
+            return
+        elif step == "button_value":
+            await process_button_value(update, context)
+            return
+        elif step == "confirm":
+            if update.message.text == "✅ Confirm & Post":
+                await confirm_and_post(update, context)
+                return
+            elif update.message.text == "✏️ Edit Content":
+                await edit_content(update, context)
+                return
+            elif update.message.text == "🔘 Edit Buttons":
+                await edit_buttons(update, context)
+                return
+            elif update.message.text == "🔙 Cancel Post":
+                await cancel_post(update, context)
+                return
 
     # Admin states
     if user_id in admin_states:
@@ -446,7 +939,16 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if message_text == t(user_id, "back_to_menu"):
         admin_states.pop(user_id, None)
+        post_states.pop(user_id, None)
         await show_main_menu(update, context)
+        return
+
+    # Admin: Add Post Button
+    if message_text == "📝 Add Post":
+        if update.effective_user.id != ADMIN_ID:
+            await update.message.reply_text(t(user_id, "unauthorized"), parse_mode="Markdown")
+            return
+        await add_post(update, context)
         return
 
     # Admin: Stats Menu
@@ -1213,7 +1715,7 @@ async def handle_receipt(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await notify_accountant_deposit(update, context, deposit_id, deposits[deposit_id])
 
 async def notify_accountant_deposit(update, context, deposit_id, deposit_data):
-    admin_id = ACCOUNTANT_ID  # Use admin's language
+    admin_id = ACCOUNTANT_ID
     methods = load_payment_methods()
     method_name = methods[deposit_data["method"]]["name"]
     keyboard = [
@@ -1310,7 +1812,6 @@ async def ask_withdraw_code(update, context):
     user_id = str(update.effective_user.id)
     state = user_states[user_id]
     state["step"] = "code"
-    # Send withdrawal video if exists
     videos = load_videos()
     for data in videos.values():
         if "Withdrawal" in data['title'] or "withdrawal" in data['title'].lower():
@@ -1390,7 +1891,7 @@ async def handle_accountant_action(update: Update, context: ContextTypes.DEFAULT
     action = parts[1]
     type_ = parts[0]
     request_id = "_".join(parts[2:])
-    admin_id = update.effective_user.id  # The admin who clicked
+    admin_id = update.effective_user.id
 
     if type_ == "deposit":
         deposits = load_deposits()
@@ -1428,7 +1929,7 @@ async def handle_accountant_action(update: Update, context: ContextTypes.DEFAULT
         else:
             context.user_data["reject_withdraw"] = request_id
             await query.edit_message_text(t(admin_id, "withdraw_reject_prompt", request_id=request_id), parse_mode="Markdown")
-            
+
 async def process_withdraw_amount(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
     amount_text = update.message.text.strip()
@@ -1908,6 +2409,9 @@ def main():
     app.add_handler(CommandHandler("del", delete_account))
     app.add_handler(CommandHandler("clearaccounts", clear_accounts))
     app.add_handler(CommandHandler("pm", manage_payment_methods))
+    app.add_handler(CommandHandler("getid", get_group_id))
+    app.add_handler(CommandHandler("addpost", add_post))
+    app.add_handler(CommandHandler("cancelpost", cancel_post))
 
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
