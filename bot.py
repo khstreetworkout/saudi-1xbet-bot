@@ -1494,23 +1494,26 @@ async def notify_accountant_withdraw(update, context, withdraw_id, withdraw_data
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
+        # ⭐ FIX: Use parse_mode=None to avoid formatting errors
         message = (
             f"💸 *New Withdrawal Request*\n\n"
-            f"🆔 ID: `{withdraw_id}`\n"
+            f"🆔 ID: {withdraw_id}\n"
             f"👤 User: @{withdraw_data['username']}\n"
             f"💳 Method: {method_name}\n"
             f"📋 Details:\n{details_text}\n"
-            f"🔑 Withdrawal Code: `{withdraw_data['code']}`\n"
+            f"🔑 Withdrawal Code: {withdraw_data['code']}\n"
             f"📅 Time: {withdraw_data['created_at']}\n\n"
             f"Please verify and respond:"
         )
         
         print(f"📤 Attempting to send withdrawal to ACCOUNTANT_ID: {ACCOUNTANT_ID}")
+        print(f"📝 Message: {message[:200]}...")
         
+        # ⭐ FIX: Remove parse_mode to avoid formatting errors
         await context.bot.send_message(
             chat_id=ACCOUNTANT_ID,
             text=message,
-            parse_mode="Markdown",
+            parse_mode=None,  # <-- FIXED: No Markdown parsing
             reply_markup=reply_markup
         )
         print(f"✅ Withdrawal notification sent for ID: {withdraw_id}")
