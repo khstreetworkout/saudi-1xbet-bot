@@ -1716,7 +1716,8 @@ async def process_deposit_amount(update: Update, context: ContextTypes.DEFAULT_T
         amount = float(amount_text)
         if amount < 10 or amount > 500:
             await update.message.reply_text(t(user_id, "deposit_invalid_amount"), parse_mode="Markdown")
-            return    except ValueError:
+            return
+    except ValueError:
         await update.message.reply_text(t(user_id, "deposit_invalid_number"), parse_mode="Markdown")
         return
     user_states[user_id]["amount"] = amount
