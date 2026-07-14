@@ -11,6 +11,7 @@ import re
 from datetime import datetime
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
 # ============================================
 # CONFIGURATION
@@ -459,12 +460,16 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if message_text == "💬 Talk to Agent":
+        keyboard = [[InlineKeyboardButton("📞 Contact Agent", url="https://t.me/Saudi_1xbet_agent")]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+    
         await update.message.reply_text(
-            f"💬 *Contact Our Agent*\n\n📞 Reach out to *{AGENT_USERNAME}* for:\n"
-            "• Account issues\n• Technical support\n• Questions about 1xBet\n"
-            "• Cashback inquiries\n\n👉 Click here: *{AGENT_USERNAME}*",
+            f"💬 *Contact Our Agent*\n\n"
+            f"📞 Reach out to *{AGENT_USERNAME}* for:\n"
+            f"• Account issues\n• Technical support\n• Questions about 1xBet\n"
+            f"• Cashback inquiries",
             parse_mode="Markdown",
-            reply_markup=get_back_to_menu_keyboard()
+            reply_markup=reply_markup
         )
         return
 
