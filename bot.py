@@ -506,9 +506,9 @@ async def ask_button_config(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ["🔙 Cancel Post"]
     ], resize_keyboard=True)
     
-    # Use parse_mode=None to avoid Markdown parsing issues
+    # Send WITHOUT Markdown parsing to avoid errors
     await update.message.reply_text(
-        f"*Button {current + 1} of {total}*\n\n"
+        f"Button {current + 1} of {total}\n\n"
         "Step 3/6: Select the button type:\n\n"
         "• URL - Opens a website\n"
         "• Callback Data - Sends data to bot (e.g., claim_bonus)\n"
@@ -516,14 +516,13 @@ async def ask_button_config(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "• User - Opens a user profile\n"
         "• Bot - Opens a bot chat\n"
         "• Switch Inline - Switches to inline mode",
-        parse_mode="Markdown"
+        parse_mode=None
     )
     
     await update.message.reply_text(
         "Select a button type:",
         reply_markup=keyboard
     )
-
 async def process_button_type(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle button type selection"""
     user_id = str(update.effective_user.id)
