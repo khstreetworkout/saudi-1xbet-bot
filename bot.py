@@ -534,16 +534,29 @@ async def handle_share_bot(update: Update, context: ContextTypes.DEFAULT_TYPE):
     share_count = shares.get(user_id, 0)
     shares[user_id] = share_count + 1
     save_shares(shares)
+    
     bot_username = (await context.bot.get_me()).username
+    bot_link = f"https://t.me/{bot_username}"
+    
+    # Inline button to share the bot
+    keyboard = [[InlineKeyboardButton("📤 Share Bot", url=f"https://t.me/share/url?url={bot_link}&text=🎰%20Get%20FREE%201xBet%20accounts%20with%2030%25%20CASHBACK!%20Join%20now%3A%20{bot_link}")]]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
     share_text = (
         f"📢 *Share Bot & Earn Rewards!*\n\n"
         f"🤖 *Bot:* @{bot_username}\n\n"
         f"📊 *You have shared:* {share_count + 1} times\n"
         f"🎁 *Rewards:* Ask our agent for special bonuses!\n\n"
-        f"📤 *Share link:* `https://t.me/{bot_username}`\n"
+        f"📤 *Share link:*\n"
+        f"`{bot_link}`\n\n"
         f"💬 Contact agent: {AGENT_USERNAME}"
     )
-    await update.message.reply_text(share_text, parse_mode="Markdown", reply_markup=get_back_to_menu_keyboard())
+    
+    await update.message.reply_text(
+        share_text,
+        parse_mode="Markdown",
+        reply_markup=reply_markup
+    )
 
 # ============================================
 # STATS SYSTEM
