@@ -998,6 +998,43 @@ async def handle_video_buttons(update: Update, context: ContextTypes.DEFAULT_TYP
             )
             return
 
+async def handle_video_upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle video file upload from admin"""
+    user_id = str(update.effective_user.id)
+    
+    # Check if user is admin and in add_video state
+    if user_id not in admin_states or admin_states[user_id].get("action") != "add_video":
+        await update.message.reply_text(
+            "❌ *You're not in video upload mode.*\n\n"
+            "Use '📹 Add Video' first.",
+            parse_mode="Markdown"
+        )
+        return
+    
+    # Get the video file_id
+    if update.message.video:
+        file_id = update.message.video.file_id
+        file_name = update.message.video.file_name or "video.mp4"
+    else:
+        await update.message.reply_text(
+            "❌ *Please send a video file!*",
+            parse_mode="Markdown"
+        )
+        return
+    
+    # Store the file_id in the state
+    admin_states[user_id]["file_id"] = file_id
+    admin_states[user_id]["step"] = "waiting_for_title"
+    
+    await update.message.reply_text(
+        "✅ *Video Received!*\n\n"
+        "📝 *Step 2/2:* Send me the title for this video\n\n"
+        "📌 Example: `How to Deposit` or `Deposit Tutorial`\n\n"
+        "Type /cancel to cancel.",
+        parse_mode="Markdown",
+        reply_markup=get_back_to_menu_keyboard()
+    )
+
 # ============================================
 # DEPOSIT & WITHDRAW SYSTEM
 # ============================================
@@ -2247,6 +2284,9 @@ def main():
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     app.add_handler(MessageHandler(filters.PHOTO, handle_message))
+
+    app.add_handler(MessageHandler(filters.VIDEO, handle_video_upload))
+    app.add_handler(MessageHandler(filters.Document.VIDEO, handle_video_upload))
     
     print("=" * 50)
     print("🤖 Saudi 1xBet Bot is RUNNING!")
