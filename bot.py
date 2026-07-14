@@ -1852,7 +1852,7 @@ def main():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("ass", add_account_command))
     app.add_handler(CommandHandler("add", add_account_command))
-    app.add_handler(CommandHandler("stats", stats))
+    app.add_handler(CommandHandler("stats", show_stats_menu))  # ✅ Fixed
     app.add_handler(CommandHandler("listaccounts", list_accounts))
     app.add_handler(CommandHandler("resetuser", reset_user))
     app.add_handler(CommandHandler("del", delete_account))
