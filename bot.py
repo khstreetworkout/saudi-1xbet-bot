@@ -34,6 +34,7 @@ DEPOSIT_FILE = os.path.join(DATA_DIR, "deposits.json")
 WITHDRAW_FILE = os.path.join(DATA_DIR, "withdrawals.json")
 PAYMENT_METHODS_FILE = os.path.join(DATA_DIR, "payment_methods.json")
 VIDEOS_FILE = os.path.join(DATA_DIR, "videos.json")
+SHARES_FILE = os.path.join(DATA_DIR, "shares.json")
 
 # ============================================
 # FILE HANDLING
@@ -119,6 +120,16 @@ def save_videos(videos):
     with open(VIDEOS_FILE, 'w') as f:
         json.dump(videos, f, indent=2)
 
+def load_shares():
+    if os.path.exists(SHARES_FILE):
+        with open(SHARES_FILE, 'r') as f:
+            return json.load(f)
+    return {}
+
+def save_shares(shares):
+    with open(SHARES_FILE, 'w') as f:
+        json.dump(shares, f, indent=2)
+
 # ============================================
 # USER STATE STORAGE
 # ============================================
@@ -198,6 +209,15 @@ def get_video_menu_keyboard(videos):
     for video_id, video_data in videos.items():
         keyboard.append([KeyboardButton(f"🎬 {video_data['title']}")])
     keyboard.append(["🔙 Back to Menu"])
+    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+
+def get_stats_menu_keyboard():
+    keyboard = [
+        ["📊 Overall Stats"],
+        ["👤 User Stats"],
+        ["💰 Player ID Cashback"],
+        ["🔙 Back to Menu"]
+    ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
 # ============================================
@@ -333,6 +353,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await show_main_menu(update, context)
         return
     
+    # Admin: Stats Menu
+    if update.effective_user.id == ADMIN_ID:
+        if message_text in ["📊 Overall Stats", "👤 User Stats", "💰 Player ID Cashback"]:
+            await handle_stats_buttons(update, context)
+            return
+    
     # Admin: Payment Methods Management
     if update.effective_user.id == ADMIN_ID:
         if user_id in admin_states:
@@ -362,7 +388,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if update.effective_user.id != ADMIN_ID:
             await update.message.reply_text("⛔ *Unauthorized!*", parse_mode="Markdown")
             return
-        await stats(update, context)
+        await show_stats_menu(update, context)
         return
     
     if message_text == "📋 /listaccounts":
@@ -442,6 +468,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if step == "method":
                 await process_withdraw_method(update, context)
                 return
+            elif step == "player_id":
+                await process_withdraw_player_id(update, context)
+                return
             elif step == "details":
                 await process_withdraw_field(update, context)
                 return
@@ -449,10 +478,342 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await process_withdraw_code(update, context)
                 return
     
+    # Handle admin states (user stats, cashback)
+    if user_id in admin_states:
+        state = admin_states[user_id]
+        action = state.get("action")
+        
+        if action == "user_stats":
+            await process_user_stats(update, context)
+            return
+        elif action == "cashback":
+            step = state.get("step")
+            if step == "waiting_for_player_id":
+                await process_cashback_player_id(update, context)
+                return
+            elif step == "waiting_for_start_date":
+                await process_cashback_start_date(update, context)
+                return
+            elif step == "waiting_for_end_date":
+                await process_cashback_end_date(update, context)
+                return
+    
     await update.message.reply_text(
         "❌ *I don't understand that command.*\n\nPlease use the buttons below:",
         parse_mode="Markdown",
         reply_markup=get_main_menu_keyboard()
+    )
+
+# ============================================
+# STATS SYSTEM
+# ============================================
+
+async def show_stats_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Show stats menu with buttons"""
+    if update.effective_user.id != ADMIN_ID:
+        await update.message.reply_text("⛔ *Unauthorized!*", parse_mode="Markdown")
+        return
+    
+    await show_overall_stats(update, context)
+
+async def handle_stats_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle stats menu buttons"""
+    message_text = update.message.text
+    
+    if message_text == "📊 Overall Stats":
+        await show_overall_stats(update, context)
+    elif message_text == "👤 User Stats":
+        await show_user_stats(update, context)
+    elif message_text == "💰 Player ID Cashback":
+        await show_cashback_calculator(update, context)
+
+async def show_overall_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Show overall bot statistics"""
+    accounts = load_accounts()
+    used_data = load_used()
+    deposits = load_deposits()
+    withdrawals = load_withdrawals()
+    
+    total_users = len(used_data)
+    total_accounts_given = sum(len(entries) for entries in used_data.values())
+    today = datetime.now().strftime("%Y-%m-%d")
+    today_given = sum(1 for entries in used_data.values() for e in entries if e.get("date") == today)
+    
+    # Deposit stats
+    deposits_accepted = sum(1 for d in deposits.values() if d.get("status") == "completed")
+    deposits_rejected = sum(1 for d in deposits.values() if d.get("status") == "rejected")
+    total_deposit_amount = sum(d.get("amount", 0) for d in deposits.values() if d.get("status") == "completed")
+    
+    # Withdraw stats
+    withdrawals_accepted = sum(1 for w in withdrawals.values() if w.get("status") == "completed")
+    withdrawals_rejected = sum(1 for w in withdrawals.values() if w.get("status") == "rejected")
+    total_withdraw_amount = sum(w.get("amount", 0) for w in withdrawals.values() if w.get("status") == "completed")
+    
+    keyboard = get_stats_menu_keyboard()
+    
+    await update.message.reply_text(
+        f"📊 *Bot Statistics*\n\n"
+        f"📦 *Available Accounts:* {len(accounts)}\n"
+        f"👤 *Total Users used bot:* {total_users}\n"
+        f"📤 *Total Accounts Given:* {total_accounts_given}\n"
+        f"📅 *Given Today:* {today_given}\n"
+        f"💰 *Cashback:* 30% on all losses\n\n"
+        f"💳 *Deposit Stats:*\n"
+        f"   ✅ Accepted: {deposits_accepted}\n"
+        f"   ❌ Rejected: {deposits_rejected}\n"
+        f"   💵 Total Accepted Amount: {total_deposit_amount:,.0f} SAR\n\n"
+        f"💸 *Withdraw Stats:*\n"
+        f"   ✅ Accepted: {withdrawals_accepted}\n"
+        f"   ❌ Rejected: {withdrawals_rejected}\n"
+        f"   💵 Total Accepted Amount: {total_withdraw_amount:,.0f} SAR",
+        parse_mode="Markdown",
+        reply_markup=keyboard
+    )
+
+async def show_user_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Ask for username to show user stats"""
+    user_id = str(update.effective_user.id)
+    admin_states[user_id] = {"action": "user_stats", "step": "waiting_for_username"}
+    
+    await update.message.reply_text(
+        "👤 *User Stats*\n\n"
+        "Please enter the Telegram username to check stats:\n\n"
+        "📝 *Example:* `@username` or `username`\n\n"
+        "Type /cancel to cancel.",
+        parse_mode="Markdown",
+        reply_markup=get_back_to_menu_keyboard()
+    )
+
+async def process_user_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Process username input and show user stats"""
+    user_id = str(update.effective_user.id)
+    username_input = update.message.text.strip()
+    
+    # Remove @ if present
+    if username_input.startswith("@"):
+        username_input = username_input[1:]
+    
+    used_data = load_used()
+    deposits = load_deposits()
+    withdrawals = load_withdrawals()
+    shares = load_shares()
+    
+    # Find user by username
+    found_user_id = None
+    found_username = None
+    
+    # Check in used_data
+    for uid, data in used_data.items():
+        for entry in data:
+            acc = entry.get("account", "")
+            if acc.startswith(f"{username_input}:") or acc == username_input:
+                found_user_id = uid
+                found_username = username_input
+                break
+        if found_user_id:
+            break
+    
+    # If not found, check deposits
+    if not found_user_id:
+        for did, deposit in deposits.items():
+            if deposit.get("username", "").lower() == username_input.lower():
+                found_user_id = deposit.get("user_id")
+                found_username = username_input
+                break
+    
+    if not found_user_id:
+        # Try as user_id (numeric)
+        if username_input.isdigit():
+            found_user_id = username_input
+            found_username = "User " + username_input
+    
+    if not found_user_id:
+        await update.message.reply_text(
+            f"❌ *User not found!*\n\n"
+            f"No user found with username `{username_input}`.",
+            parse_mode="Markdown",
+            reply_markup=get_stats_menu_keyboard()
+        )
+        admin_states.pop(user_id, None)
+        return
+    
+    # Get user data
+    user_accounts = get_user_accounts(found_user_id, used_data)
+    user_deposits = [d for d in deposits.values() if d.get("user_id") == found_user_id]
+    user_withdrawals = [w for w in withdrawals.values() if w.get("user_id") == found_user_id]
+    
+    # Calculate stats
+    total_accounts = len(user_accounts)
+    today = datetime.now().strftime("%Y-%m-%d")
+    given_today = sum(1 for a in user_accounts if a.get("date") == today)
+    
+    deposits_accepted = sum(1 for d in user_deposits if d.get("status") == "completed")
+    deposits_rejected = sum(1 for d in user_deposits if d.get("status") == "rejected")
+    total_deposit_amount = sum(d.get("amount", 0) for d in user_deposits if d.get("status") == "completed")
+    
+    withdrawals_accepted = sum(1 for w in user_withdrawals if w.get("status") == "completed")
+    withdrawals_rejected = sum(1 for w in user_withdrawals if w.get("status") == "rejected")
+    total_withdraw_amount = sum(w.get("amount", 0) for w in user_withdrawals if w.get("status") == "completed")
+    
+    share_count = shares.get(found_user_id, 0)
+    
+    admin_states.pop(user_id, None)
+    
+    keyboard = get_stats_menu_keyboard()
+    
+    await update.message.reply_text(
+        f"👤 *User Stats for @{found_username}*\n\n"
+        f"📤 *Total Accounts Given:* {total_accounts}\n"
+        f"📅 *Given Today:* {given_today}\n\n"
+        f"💳 *Deposit Stats:*\n"
+        f"   ✅ Accepted: {deposits_accepted}\n"
+        f"   ❌ Rejected: {deposits_rejected}\n"
+        f"   💵 Total Accepted Amount: {total_deposit_amount:,.0f} SAR\n\n"
+        f"💸 *Withdraw Stats:*\n"
+        f"   ✅ Accepted: {withdrawals_accepted}\n"
+        f"   ❌ Rejected: {withdrawals_rejected}\n"
+        f"   💵 Total Accepted Amount: {total_withdraw_amount:,.0f} SAR\n\n"
+        f"📢 *Times shared bot:* {share_count}",
+        parse_mode="Markdown",
+        reply_markup=keyboard
+    )
+
+async def show_cashback_calculator(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Ask for player ID to calculate cashback"""
+    user_id = str(update.effective_user.id)
+    admin_states[user_id] = {"action": "cashback", "step": "waiting_for_player_id"}
+    
+    await update.message.reply_text(
+        "💰 *Player ID Cashback Calculator*\n\n"
+        "Step 1/3: Enter the Player ID\n\n"
+        "📝 *Example:* `123456789`\n\n"
+        "Type /cancel to cancel.",
+        parse_mode="Markdown",
+        reply_markup=get_back_to_menu_keyboard()
+    )
+
+async def process_cashback_player_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Process player ID and ask for start date"""
+    user_id = str(update.effective_user.id)
+    player_id = update.message.text.strip()
+    
+    if not player_id.isdigit():
+        await update.message.reply_text("❌ *Invalid Player ID!*\n\nPlease enter a numeric Player ID.", parse_mode="Markdown")
+        return
+    
+    admin_states[user_id]["player_id"] = player_id
+    admin_states[user_id]["step"] = "waiting_for_start_date"
+    
+    await update.message.reply_text(
+        f"✅ Player ID: `{player_id}`\n\n"
+        "Step 2/3: Enter the start date\n\n"
+        "📝 *Format:* `YYYY-MM-DD`\n\n"
+        "📌 *Example:* `2026-07-01`\n\n"
+        "Type /cancel to cancel.",
+        parse_mode="Markdown",
+        reply_markup=get_back_to_menu_keyboard()
+    )
+
+async def process_cashback_start_date(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Process start date and ask for end date"""
+    user_id = str(update.effective_user.id)
+    start_date = update.message.text.strip()
+    
+    try:
+        datetime.strptime(start_date, "%Y-%m-%d")
+    except ValueError:
+        await update.message.reply_text(
+            "❌ *Invalid date format!*\n\n"
+            "Please use the format: `YYYY-MM-DD`\n"
+            "📌 *Example:* `2026-07-01`",
+            parse_mode="Markdown"
+        )
+        return
+    
+    admin_states[user_id]["start_date"] = start_date
+    admin_states[user_id]["step"] = "waiting_for_end_date"
+    
+    await update.message.reply_text(
+        f"✅ Start Date: `{start_date}`\n\n"
+        "Step 3/3: Enter the end date\n\n"
+        "📝 *Format:* `YYYY-MM-DD`\n\n"
+        "📌 *Example:* `2026-07-14`\n\n"
+        "Type /cancel to cancel.",
+        parse_mode="Markdown",
+        reply_markup=get_back_to_menu_keyboard()
+    )
+
+async def process_cashback_end_date(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Process end date and calculate cashback"""
+    user_id = str(update.effective_user.id)
+    end_date = update.message.text.strip()
+    
+    try:
+        datetime.strptime(end_date, "%Y-%m-%d")
+    except ValueError:
+        await update.message.reply_text(
+            "❌ *Invalid date format!*\n\n"
+            "Please use the format: `YYYY-MM-DD`",
+            parse_mode="Markdown"
+        )
+        return
+    
+    state = admin_states[user_id]
+    player_id = state.get("player_id")
+    start_date = state.get("start_date")
+    
+    deposits = load_deposits()
+    withdrawals = load_withdrawals()
+    
+    # Filter deposits by player_id and date range
+    total_deposits = 0
+    deposits_count = 0
+    for d in deposits.values():
+        if d.get("player_id") == player_id and d.get("status") == "completed":
+            created_at = d.get("created_at", "")
+            if created_at:
+                try:
+                    created_date = created_at.split("T")[0] if "T" in created_at else created_at[:10]
+                    if start_date <= created_date <= end_date:
+                        total_deposits += d.get("amount", 0)
+                        deposits_count += 1
+                except:
+                    pass
+    
+    # Filter withdrawals by player_id and date range
+    total_withdrawals = 0
+    withdrawals_count = 0
+    for w in withdrawals.values():
+        if w.get("player_id") == player_id and w.get("status") == "completed":
+            created_at = w.get("created_at", "")
+            if created_at:
+                try:
+                    created_date = created_at.split("T")[0] if "T" in created_at else created_at[:10]
+                    if start_date <= created_date <= end_date:
+                        total_withdrawals += w.get("amount", 0)
+                        withdrawals_count += 1
+                except:
+                    pass
+    
+    net_amount = total_deposits - total_withdrawals
+    cashback = net_amount * 0.25  # 25% cashback
+    
+    admin_states.pop(user_id, None)
+    
+    keyboard = get_stats_menu_keyboard()
+    
+    await update.message.reply_text(
+        f"💰 *Cashback Calculation*\n\n"
+        f"🆔 Player ID: `{player_id}`\n"
+        f"📅 Period: {start_date} to {end_date}\n\n"
+        f"📊 *Summary:*\n"
+        f"   💳 Deposits Accepted: {deposits_count} ({total_deposits:,.0f} SAR)\n"
+        f"   💸 Withdrawals Accepted: {withdrawals_count} ({total_withdrawals:,.0f} SAR)\n"
+        f"   📊 Net Amount: {net_amount:,.0f} SAR\n\n"
+        f"🎯 *Cashback (25%):* `{cashback:,.2f} SAR`\n\n"
+        f"📌 *Formula:* 25% × (Deposits - Withdrawals)",
+        parse_mode="Markdown",
+        reply_markup=keyboard
     )
 
 # ============================================
@@ -853,7 +1214,7 @@ async def start_withdraw(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [[KeyboardButton(m["name"])] for m in methods.values()] + [["🔙 Back to Menu"]]
     
     await update.message.reply_text(
-        "💸 *Withdraw Process*\n\nStep 1/3: Select withdrawal method\n\nChoose your withdrawal method:",
+        "💸 *Withdraw Process*\n\nStep 1/4: Select withdrawal method\n\nChoose your withdrawal method:",
         parse_mode="Markdown",
         reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
     )
@@ -874,10 +1235,27 @@ async def process_withdraw_method(update: Update, context: ContextTypes.DEFAULT_
         return
     
     user_states[user_id]["method"] = method_key
+    user_states[user_id]["step"] = "player_id"
+    
+    await update.message.reply_text(
+        f"💸 *Withdraw Process*\n\nStep 2/4: Enter your Player ID\n\n📝 Please enter your 1xBet Player ID:",
+        parse_mode="Markdown",
+        reply_markup=get_back_to_menu_keyboard()
+    )
+
+async def process_withdraw_player_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = str(update.effective_user.id)
+    player_id = update.message.text.strip()
+    
+    if not player_id.isdigit():
+        await update.message.reply_text("❌ *Invalid Player ID!*\n\nPlease enter a valid numeric Player ID.", parse_mode="Markdown")
+        return
+    
+    user_states[user_id]["player_id"] = player_id
     user_states[user_id]["step"] = "details"
     user_states[user_id]["details"] = {}
     
-    fields = methods[method_key]["fields"]
+    fields = load_payment_methods()[user_states[user_id]["method"]]["fields"]
     user_states[user_id]["fields"] = fields
     user_states[user_id]["field_index"] = 0
     
@@ -895,7 +1273,7 @@ async def ask_withdraw_field(update, context):
     
     field = fields[field_index]
     await update.message.reply_text(
-        f"💸 *Withdraw Process*\n\nStep 2/3: Enter your details\n\n📝 *{field}:*\n\nPlease enter your {field.lower()}:",
+        f"💸 *Withdraw Process*\n\nStep 3/4: Enter your details\n\n📝 *{field}:*\n\nPlease enter your {field.lower()}:",
         parse_mode="Markdown",
         reply_markup=get_back_to_menu_keyboard()
     )
@@ -930,7 +1308,7 @@ async def ask_withdraw_code(update, context):
             break
     
     await update.message.reply_text(
-        "💸 *Withdraw Process*\n\nStep 3/3: Enter withdrawal code\n\n"
+        "💸 *Withdraw Process*\n\nStep 4/4: Enter withdrawal code\n\n"
         "📋 *How to get your withdrawal code:*\n\n"
         "1️⃣ Open 1xBet app\n"
         "2️⃣ Go to *Withdraw* section\n"
@@ -961,6 +1339,7 @@ async def process_withdraw_code(update: Update, context: ContextTypes.DEFAULT_TY
     withdrawals[withdraw_id] = {
         "user_id": user_id,
         "username": update.effective_user.username or "NoUsername",
+        "player_id": state.get("player_id"),
         "method": state.get("method"),
         "details": state.get("details", {}),
         "code": code,
@@ -993,6 +1372,7 @@ async def notify_accountant_withdraw(update, context, withdraw_id, withdraw_data
             f"💸 *New Withdrawal Request*\n\n"
             f"🆔 ID: {withdraw_id}\n"
             f"👤 User: @{withdraw_data['username']}\n"
+            f"🆔 Player ID: {withdraw_data.get('player_id', 'N/A')}\n"
             f"💳 Method: {method_name}\n"
             f"📋 User Details:\n{details_text}\n"
             f"🔑 Withdrawal Code: {withdraw_data['code']}\n"
@@ -1390,28 +1770,6 @@ async def add_account_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     
     added_text = "\n".join([f"• *Username:* `{u.split(':',1)[0]}`\n   *Password:* `{u.split(':',1)[1]}`" for u in new_accounts])
     await update.message.reply_text(f"✅ *Added {len(new_accounts)} account(s)!*\n\n{added_text}\n\n📦 *Total Available:* {len(current_accounts)}\n💰 *All accounts get 30% cashback!*", parse_mode="Markdown")
-
-async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID:
-        await update.message.reply_text("⛔ *Unauthorized!*", parse_mode="Markdown")
-        return
-    
-    accounts = load_accounts()
-    used_data = load_used()
-    deposits = load_deposits()
-    withdrawals = load_withdrawals()
-    
-    total_users = len(used_data)
-    total_accounts_given = sum(len(entries) for entries in used_data.values())
-    today = datetime.now().strftime("%Y-%m-%d")
-    today_given = sum(1 for entries in used_data.values() for e in entries if e.get("date") == today)
-    pending_deposits = sum(1 for d in deposits.values() if d.get("status") == "pending")
-    pending_withdrawals = sum(1 for w in withdrawals.values() if w.get("status") == "pending")
-    
-    await update.message.reply_text(
-        f"📊 *Bot Statistics*\n\n📦 *Available Accounts:* {len(accounts)}\n👤 *Total Users:* {total_users}\n📤 *Total Accounts Given:* {total_accounts_given}\n📅 *Given Today:* {today_given}\n💰 *Cashback:* 30% on all losses\n💳 *Pending Deposits:* {pending_deposits}\n💸 *Pending Withdrawals:* {pending_withdrawals}",
-        parse_mode="Markdown"
-    )
 
 async def list_accounts(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
