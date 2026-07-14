@@ -551,6 +551,7 @@ async def process_button_type(update: Update, context: ContextTypes.DEFAULT_TYPE
         await update.message.reply_text("❌ Please select a valid button type.", parse_mode=None)
         return
     
+    # Store the button type and move to name step
     post_states[user_id]["current_button_type"] = button_type
     post_states[user_id]["step"] = "button_name"
     
@@ -576,7 +577,10 @@ async def process_button_name(update: Update, context: ContextTypes.DEFAULT_TYPE
         await cancel_post(update, context)
         return
     
+    # Save the button name
     post_states[user_id]["current_button_name"] = update.message.text
+    
+    # Move to value step
     post_states[user_id]["step"] = "button_value"
     
     button_type = post_states[user_id]["current_button_type"]
@@ -584,7 +588,7 @@ async def process_button_name(update: Update, context: ContextTypes.DEFAULT_TYPE
         "url": "Example: https://t.me/yourbot",
         "callback_data": "Example: claim_bonus or get_account",
         "web_app": "Example: https://your-app.com",
-        "user": "Example: @username",
+        "user": "Example: @username (or numeric ID)",
         "bot": "Example: @yourbot",
         "switch_inline_query": "Example: text to search"
     }
@@ -615,6 +619,7 @@ async def process_button_value(update: Update, context: ContextTypes.DEFAULT_TYP
     
     state = post_states[user_id]
     
+    # Save the button with text, type, and value
     button_data = {
         "text": state["current_button_name"],
         "type": state["current_button_type"],
@@ -623,10 +628,14 @@ async def process_button_value(update: Update, context: ContextTypes.DEFAULT_TYP
     state["buttons"].append(button_data)
     state["current_button"] += 1
     
+    # Check if all buttons are configured
     if state["current_button"] >= state["button_count"]:
+        # All buttons done - show confirmation
         state["step"] = "confirm"
         await show_confirmation(update, context)
     else:
+        # Still more buttons - ask for next button type
+        state["step"] = "button_config"
         await ask_button_config(update, context)
 
 async def show_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE):
