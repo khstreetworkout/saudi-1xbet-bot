@@ -25,6 +25,7 @@ ADMIN_ID = 6012442109
 ACCOUNTANT_ID = 6012442109
 AGENT_USERNAME = "@Saudi_1xbet_agent"
 CASHBACK_PERCENT = 0.25
+GROUP_CHAT_ID = -1004309440596  # Your group ID
 
 # ============================================
 # DATA DIRECTORY
@@ -388,6 +389,67 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
 # ============================================
+# GROUP WELCOME HANDLER
+# ============================================
+
+async def welcome_new_member(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Send welcome message when new member joins the group"""
+    chat_id = update.effective_chat.id
+    
+    # Only trigger in your group
+    if chat_id != GROUP_CHAT_ID:
+        return
+    
+    # Check if there are new members
+    if not update.message or not update.message.new_chat_members:
+        return
+    
+    # For each new member (except the bot itself)
+    for new_member in update.message.new_chat_members:
+        if new_member.id == context.bot.id:
+            continue  # Skip if bot itself joins
+        
+        user_id = new_member.id
+        user_mention = f"@{new_member.username}" if new_member.username else new_member.first_name
+        
+        # Get user's preferred language
+        lang = get_user_language(user_id)
+        
+        if lang == "ar":
+            welcome_text = (
+                f"👋 *مرحباً {user_mention}!*\n\n"
+                f"🎰 *مرحباً بك في مجموعة 1xBet السعودية!*\n\n"
+                f"📌 *للحصول على حساب مجاني:*\n"
+                f"• اضغط على الزر أدناه لفتح البوت\n\n"
+                f"📞 *للاستفسارات والدعم:*\n"
+                f"• تواصل مع وكيلنا مباشرة\n\n"
+                f"🔥 *استمتع بخدماتنا!*"
+            )
+        else:
+            welcome_text = (
+                f"👋 *Welcome {user_mention}!*\n\n"
+                f"🎰 *Welcome to 1xBet Saudi Arabia group!*\n\n"
+                f"📌 *To get a free account:*\n"
+                f"• Click the button below to open the bot\n\n"
+                f"📞 *For inquiries and support:*\n"
+                f"• Contact our agent directly\n\n"
+                f"🔥 *Enjoy our services!*"
+            )
+        
+        keyboard = [
+            [InlineKeyboardButton("🎰 Open Bot" if lang == "en" else "🎰 افتح البوت", url="https://t.me/Saudi_1xBet_bot?start=group")],
+            [InlineKeyboardButton("📞 Contact Agent" if lang == "en" else "📞 تواصل مع الوكيل", url="https://t.me/Saudi_1xbet_agent")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text=welcome_text,
+            parse_mode="Markdown",
+            reply_markup=reply_markup
+        )
+
+# ============================================
 # ADMIN POST CREATION SYSTEM
 # ============================================
 
@@ -659,7 +721,7 @@ async def show_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         preview_text += "📌 No buttons\n"
     
-    preview_text += "\n📤 Send to:\n• 📢 Channel: @saudi_1xbet_accounts\n• 👥 Group: 1xbet Saudi Arabia chat\n\n"
+    preview_text += "\n📤 Send to:\n• 📢 Channel: @saudi_1xbet_accounts\n• 👥 Group: (auto-synced via discussion)\n\n"
     preview_text += "Choose an option below:"
     
     keyboard = ReplyKeyboardMarkup([
@@ -822,7 +884,21 @@ async def get_group_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
+    chat_id = update.effective_chat.id
     used_data = load_used()
+    
+    # ============================================
+    # SKIP ALL BOT FEATURES IN THE GROUP
+    # ============================================
+    if chat_id == GROUP_CHAT_ID:
+        # Only handle new member welcome messages
+        if update.message and update.message.new_chat_members:
+            # Let the welcome handler do its job
+            pass
+        else:
+            # Ignore everything else in the group
+            return
+    
     await update.message.chat.send_action(action="typing")
 
     # ============================================
@@ -1640,8 +1716,7 @@ async def process_deposit_amount(update: Update, context: ContextTypes.DEFAULT_T
         amount = float(amount_text)
         if amount < 10 or amount > 500:
             await update.message.reply_text(t(user_id, "deposit_invalid_amount"), parse_mode="Markdown")
-            return
-    except ValueError:
+            return    except ValueError:
         await update.message.reply_text(t(user_id, "deposit_invalid_number"), parse_mode="Markdown")
         return
     user_states[user_id]["amount"] = amount
@@ -2387,6 +2462,14 @@ def main():
     app.add_handler(CommandHandler("getid", get_group_id))
     app.add_handler(CommandHandler("addpost", add_post))
     app.add_handler(CommandHandler("cancelpost", cancel_post))
+
+    # ============================================
+    # GROUP WELCOME HANDLER
+    # ============================================
+    app.add_handler(MessageHandler(
+        filters.StatusUpdate.NEW_CHAT_MEMBERS, 
+        welcome_new_member
+    ))
 
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
