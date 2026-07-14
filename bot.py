@@ -678,7 +678,7 @@ async def show_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def confirm_and_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Post to channel and group"""
+    """Post to channel only (Telegram handles discussion group automatically)"""
     user_id = str(update.effective_user.id)
     
     if user_id not in post_states:
@@ -720,7 +720,7 @@ async def confirm_and_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text = None
     
     # ============================================
-    # SEND TO CHANNEL
+    # SEND TO CHANNEL ONLY
     # ============================================
     try:
         if state["content_type"] == "text":
@@ -757,55 +757,13 @@ async def confirm_and_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 )
         
         # ============================================
-        # SEND TO GROUP
-        # ============================================
-        GROUP_CHAT_ID = -1004309440596
-        
-        try:
-            if state["content_type"] == "text":
-                await context.bot.send_message(
-                    chat_id=GROUP_CHAT_ID,
-                    text=text,
-                    reply_markup=reply_markup,
-                    parse_mode=None
-                )
-            else:
-                if state["content_type"] == "photo":
-                    await context.bot.send_photo(
-                        chat_id=GROUP_CHAT_ID,
-                        photo=state["file_id"],
-                        caption=caption,
-                        reply_markup=reply_markup,
-                        parse_mode=None
-                    )
-                elif state["content_type"] == "video":
-                    await context.bot.send_video(
-                        chat_id=GROUP_CHAT_ID,
-                        video=state["file_id"],
-                        caption=caption,
-                        reply_markup=reply_markup,
-                        parse_mode=None
-                    )
-                elif state["content_type"] == "document":
-                    await context.bot.send_document(
-                        chat_id=GROUP_CHAT_ID,
-                        document=state["file_id"],
-                        caption=caption,
-                        reply_markup=reply_markup,
-                        parse_mode=None
-                    )
-        except Exception as e:
-            print(f"Error sending to group: {e}")
-            await update.message.reply_text(f"⚠️ Error sending to group: {e}", parse_mode=None)
-        
-        # ============================================
         # SUCCESS CONFIRMATION
         # ============================================
         await update.message.reply_text(
             f"✅ Post Published Successfully!\n\n"
             f"📢 Sent to:\n"
             f"• ✅ Channel: @saudi_1xbet_accounts\n"
-            f"• ✅ Group: 1xbet Saudi Arabia chat\n\n"
+            f"• ✅ Group: (auto-synced via discussion)\n\n"
             f"🔘 Buttons: {len(keyboard)}",
             parse_mode=None,
             reply_markup=get_admin_menu_keyboard(user_id)
