@@ -215,6 +215,13 @@ LANGUAGES = {
         
         # Stats menu options
         "stats_menu_options": "📊 *Statistics Menu*\n\nSelect an option below:",
+
+        # ----- NEW KEYS ADDED -----
+        "receipt_caption": "📸 Receipt for Deposit {deposit_id}",
+        "video_play_caption": "🎬 *{title}*\n\n📹 Tutorial Video\n📅 Added: {date}",
+        "video_list_item": "🆔 ID: `{vid}`\n🎬 Title: {title}\n📅 Added: {date}",
+        "withdraw_video_caption": "🎬 *{title}*\n\n📹 Watch this tutorial for step-by-step instructions!",
+        # --------------------------
     },
     "ar": {
         # Bot name and welcome
@@ -429,6 +436,13 @@ LANGUAGES = {
         
         # Stats menu options
         "stats_menu_options": "📊 *قائمة الإحصائيات*\n\nاختر خياراً أدناه:",
+
+        # ----- NEW KEYS ADDED -----
+        "receipt_caption": "📸 إيصال الإيداع {deposit_id}",
+        "video_play_caption": "🎬 *{title}*\n\n📹 فيديو تعليمي\n📅 تاريخ الإضافة: {date}",
+        "video_list_item": "🆔 المعرف: `{vid}`\n🎬 العنوان: {title}\n📅 تاريخ الإضافة: {date}",
+        "withdraw_video_caption": "🎬 *{title}*\n\n📹 شاهد هذا الفيديو التعليمي للحصول على التعليمات خطوة بخطوة!",
+        # --------------------------
     }
 }
 
@@ -437,18 +451,15 @@ def t(user_id, key, **kwargs):
     Translation helper function.
     Usage: t(user_id, "welcome_text", name="John")
     """
-    # Import here to avoid circular import
     from user_language import get_user_language
     
     lang = get_user_language(user_id)
     text = LANGUAGES.get(lang, LANGUAGES["en"]).get(key, key)
     
-    # Format with kwargs if provided
     if kwargs:
         try:
             text = text.format(**kwargs)
         except KeyError as e:
-            # If formatting fails, return the raw text with the missing key
             print(f"Missing translation key: {e}")
             return text
     return text
