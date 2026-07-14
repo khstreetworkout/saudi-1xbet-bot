@@ -396,19 +396,19 @@ async def add_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
     
     if update.effective_user.id != ADMIN_ID:
-        await update.message.reply_text("⛔ *Unauthorized!*", parse_mode="Markdown")
+        await update.message.reply_text("⛔ Unauthorized!", parse_mode=None)
         return
     
     post_states[user_id] = {"step": "content"}
     await update.message.reply_text(
-        "📝 *Create a New Post*\n\n"
-        "*Step 1/6:* Send me the post content\n\n"
+        "📝 Create a New Post\n\n"
+        "Step 1/6: Send me the post content\n\n"
         "You can send:\n"
         "• 📝 Text message\n"
         "• 🖼️ Photo (with or without caption)\n"
         "• 🎥 Video (with or without caption)\n\n"
         "Type /cancel to cancel.",
-        parse_mode="Markdown",
+        parse_mode=None,
         reply_markup=ReplyKeyboardMarkup([["🔙 Cancel Post"]], resize_keyboard=True)
     )
 
@@ -443,15 +443,15 @@ async def process_post_content(update: Update, context: ContextTypes.DEFAULT_TYP
         post_states[user_id]["file_id"] = update.message.document.file_id
         post_states[user_id]["caption"] = update.message.caption
     else:
-        await update.message.reply_text("❌ Please send text, photo, or video.")
+        await update.message.reply_text("❌ Please send text, photo, or video.", parse_mode=None)
         return
     
     post_states[user_id]["step"] = "button_count"
     await update.message.reply_text(
-        "✅ *Content Received!*\n\n"
-        "*Step 2/6:* How many buttons do you want?\n"
+        "✅ Content Received!\n\n"
+        "Step 2/6: How many buttons do you want?\n"
         "Choose a number from 0 to 9:",
-        parse_mode="Markdown",
+        parse_mode=None,
         reply_markup=ReplyKeyboardMarkup(
             [["0", "1", "2", "3", "4", "5"], ["6", "7", "8", "9"]],
             resize_keyboard=True
@@ -477,7 +477,7 @@ async def process_button_count(update: Update, context: ContextTypes.DEFAULT_TYP
         if count < 0 or count > 9:
             raise ValueError
     except:
-        await update.message.reply_text("❌ Please enter a number between 0 and 9.")
+        await update.message.reply_text("❌ Please enter a number between 0 and 9.", parse_mode=None)
         return
     
     if count == 0:
@@ -506,7 +506,6 @@ async def ask_button_config(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ["🔙 Cancel Post"]
     ], resize_keyboard=True)
     
-    # Send WITHOUT Markdown parsing to avoid errors
     await update.message.reply_text(
         f"Button {current + 1} of {total}\n\n"
         "Step 3/6: Select the button type:\n\n"
@@ -523,6 +522,7 @@ async def ask_button_config(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Select a button type:",
         reply_markup=keyboard
     )
+
 async def process_button_type(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle button type selection"""
     user_id = str(update.effective_user.id)
@@ -548,17 +548,17 @@ async def process_button_type(update: Update, context: ContextTypes.DEFAULT_TYPE
     
     button_type = button_type_map.get(update.message.text)
     if not button_type:
-        await update.message.reply_text("❌ Please select a valid button type.")
+        await update.message.reply_text("❌ Please select a valid button type.", parse_mode=None)
         return
     
     post_states[user_id]["current_button_type"] = button_type
     post_states[user_id]["step"] = "button_name"
     
     await update.message.reply_text(
-        f"*Button {post_states[user_id]['current_button'] + 1} of {post_states[user_id]['button_count']}*\n\n"
+        f"Button {post_states[user_id]['current_button'] + 1} of {post_states[user_id]['button_count']}\n\n"
         "Step 4/6: Enter the button text (display name):\n\n"
-        "Example: `🎰 Get Account`",
-        parse_mode="Markdown",
+        "Example: 🎰 Get Account",
+        parse_mode=None,
         reply_markup=ReplyKeyboardMarkup([["🔙 Cancel Post"]], resize_keyboard=True)
     )
 
@@ -581,21 +581,21 @@ async def process_button_name(update: Update, context: ContextTypes.DEFAULT_TYPE
     
     button_type = post_states[user_id]["current_button_type"]
     examples = {
-        "url": "Example: `https://t.me/yourbot`",
-        "callback_data": "Example: `claim_bonus` or `get_account`",
-        "web_app": "Example: `https://your-app.com`",
-        "user": "Example: `@username`",
-        "bot": "Example: `@yourbot`",
-        "switch_inline_query": "Example: `text to search`"
+        "url": "Example: https://t.me/yourbot",
+        "callback_data": "Example: claim_bonus or get_account",
+        "web_app": "Example: https://your-app.com",
+        "user": "Example: @username",
+        "bot": "Example: @yourbot",
+        "switch_inline_query": "Example: text to search"
     }
     
     await update.message.reply_text(
-        f"*Button {post_states[user_id]['current_button'] + 1} of {post_states[user_id]['button_count']}*\n\n"
+        f"Button {post_states[user_id]['current_button'] + 1} of {post_states[user_id]['button_count']}\n\n"
         f"Step 5/6: Enter the button value:\n\n"
-        f"📌 *Type:* `{button_type}`\n"
+        f"📌 Type: {button_type}\n"
         f"{examples.get(button_type, '')}\n\n"
         "Type the value:",
-        parse_mode="Markdown",
+        parse_mode=None,
         reply_markup=ReplyKeyboardMarkup([["🔙 Cancel Post"]], resize_keyboard=True)
     )
 
@@ -634,23 +634,23 @@ async def show_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
     state = post_states[user_id]
     
-    preview_text = "📋 *Post Preview*\n\n"
+    preview_text = "📋 Post Preview\n\n"
     
     if state.get("content_type") == "text":
-        preview_text += f"📝 *Text:*\n{state['text']}\n\n"
+        preview_text += f"📝 Text:\n{state['text']}\n\n"
     else:
-        preview_text += f"🖼️ *Media Type:* {state['content_type']}\n"
+        preview_text += f"🖼️ Media Type: {state['content_type']}\n"
         if state.get("caption"):
-            preview_text += f"📝 *Caption:*\n{state['caption']}\n\n"
+            preview_text += f"📝 Caption:\n{state['caption']}\n\n"
     
     if state.get("buttons"):
-        preview_text += "🔘 *Buttons:*\n"
+        preview_text += "🔘 Buttons:\n"
         for i, btn in enumerate(state["buttons"]):
             preview_text += f"  {i+1}. {btn['text']} → {btn['type']}: {btn['value']}\n"
     else:
         preview_text += "📌 No buttons\n"
     
-    preview_text += "\n📤 *Send to:*\n• 📢 Channel: @saudi_1xbet_accounts\n• 👥 Group: 1xbet Saudi Arabia chat\n\n"
+    preview_text += "\n📤 Send to:\n• 📢 Channel: @saudi_1xbet_accounts\n• 👥 Group: 1xbet Saudi Arabia chat\n\n"
     preview_text += "Choose an option below:"
     
     keyboard = ReplyKeyboardMarkup([
@@ -660,7 +660,11 @@ async def show_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     await update.message.reply_text(
         preview_text,
-        parse_mode="Markdown",
+        parse_mode=None
+    )
+    
+    await update.message.reply_text(
+        "Choose an option:",
         reply_markup=keyboard
     )
 
@@ -715,7 +719,7 @@ async def confirm_and_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 chat_id="@saudi_1xbet_accounts",
                 text=text,
                 reply_markup=reply_markup,
-                parse_mode="Markdown"
+                parse_mode=None
             )
         else:
             if state["content_type"] == "photo":
@@ -724,7 +728,7 @@ async def confirm_and_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     photo=state["file_id"],
                     caption=caption,
                     reply_markup=reply_markup,
-                    parse_mode="Markdown"
+                    parse_mode=None
                 )
             elif state["content_type"] == "video":
                 await context.bot.send_video(
@@ -732,7 +736,7 @@ async def confirm_and_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     video=state["file_id"],
                     caption=caption,
                     reply_markup=reply_markup,
-                    parse_mode="Markdown"
+                    parse_mode=None
                 )
             elif state["content_type"] == "document":
                 await context.bot.send_document(
@@ -740,13 +744,13 @@ async def confirm_and_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     document=state["file_id"],
                     caption=caption,
                     reply_markup=reply_markup,
-                    parse_mode="Markdown"
+                    parse_mode=None
                 )
         
         # ============================================
         # SEND TO GROUP
         # ============================================
-        GROUP_CHAT_ID = -1004309440596  # ✅ Your group ID
+        GROUP_CHAT_ID = -1004309440596
         
         try:
             if state["content_type"] == "text":
@@ -754,7 +758,7 @@ async def confirm_and_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     chat_id=GROUP_CHAT_ID,
                     text=text,
                     reply_markup=reply_markup,
-                    parse_mode="Markdown"
+                    parse_mode=None
                 )
             else:
                 if state["content_type"] == "photo":
@@ -763,7 +767,7 @@ async def confirm_and_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         photo=state["file_id"],
                         caption=caption,
                         reply_markup=reply_markup,
-                        parse_mode="Markdown"
+                        parse_mode=None
                     )
                 elif state["content_type"] == "video":
                     await context.bot.send_video(
@@ -771,7 +775,7 @@ async def confirm_and_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         video=state["file_id"],
                         caption=caption,
                         reply_markup=reply_markup,
-                        parse_mode="Markdown"
+                        parse_mode=None
                     )
                 elif state["content_type"] == "document":
                     await context.bot.send_document(
@@ -779,27 +783,27 @@ async def confirm_and_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         document=state["file_id"],
                         caption=caption,
                         reply_markup=reply_markup,
-                        parse_mode="Markdown"
+                        parse_mode=None
                     )
         except Exception as e:
             print(f"Error sending to group: {e}")
-            await update.message.reply_text(f"⚠️ Error sending to group: {e}")
+            await update.message.reply_text(f"⚠️ Error sending to group: {e}", parse_mode=None)
         
         # ============================================
         # SUCCESS CONFIRMATION
         # ============================================
         await update.message.reply_text(
-            f"✅ *Post Published Successfully!*\n\n"
+            f"✅ Post Published Successfully!\n\n"
             f"📢 Sent to:\n"
             f"• ✅ Channel: @saudi_1xbet_accounts\n"
             f"• ✅ Group: 1xbet Saudi Arabia chat\n\n"
             f"🔘 Buttons: {len(keyboard)}",
-            parse_mode="Markdown",
+            parse_mode=None,
             reply_markup=get_admin_menu_keyboard(user_id)
         )
         
     except Exception as e:
-        await update.message.reply_text(f"❌ Error: {e}")
+        await update.message.reply_text(f"❌ Error: {e}", parse_mode=None)
     
     # Clean up
     post_states.pop(user_id, None)
@@ -810,8 +814,8 @@ async def edit_content(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if user_id in post_states:
         post_states[user_id]["step"] = "content"
         await update.message.reply_text(
-            "✏️ *Edit Content*\n\nSend the new content:",
-            parse_mode="Markdown"
+            "✏️ Edit Content\n\nSend the new content:",
+            parse_mode=None
         )
 
 async def edit_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -822,8 +826,8 @@ async def edit_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         post_states[user_id]["current_button"] = 0
         post_states[user_id]["step"] = "button_count"
         await update.message.reply_text(
-            "✏️ *Edit Buttons*\n\nHow many buttons do you want? (0-9)",
-            parse_mode="Markdown",
+            "✏️ Edit Buttons\n\nHow many buttons do you want? (0-9)",
+            parse_mode=None,
             reply_markup=ReplyKeyboardMarkup(
                 [["0", "1", "2", "3", "4", "5"], ["6", "7", "8", "9"]],
                 resize_keyboard=True
@@ -835,8 +839,8 @@ async def cancel_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
     post_states.pop(user_id, None)
     await update.message.reply_text(
-        "❌ *Post Creation Cancelled!*",
-        parse_mode="Markdown",
+        "❌ Post Creation Cancelled!",
+        parse_mode=None,
         reply_markup=get_admin_menu_keyboard(user_id)
     )
 
