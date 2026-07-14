@@ -323,6 +323,33 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     used_data = load_used()
     await update.message.chat.send_action(action="typing")
 
+    # ✅ FIRST: Check admin states (withdraw_amount, user_stats, cashback)
+    print(f"🔍 DEBUG: admin_states before any check: {admin_states}")
+    if user_id in admin_states:
+        state = admin_states[user_id]
+        action = state.get("action")
+        print(f"🔍 DEBUG: Found admin state action={action} for user {user_id}")
+
+        if action == "user_stats":
+            await process_user_stats(update, context)
+            return
+        elif action == "cashback":
+            step = state.get("step")
+            if step == "waiting_for_player_id":
+                await process_cashback_player_id(update, context)
+                return
+            elif step == "waiting_for_start_date":
+                await process_cashback_start_date(update, context)
+                return
+            elif step == "waiting_for_end_date":
+                await process_cashback_end_date(update, context)
+                return
+        elif action == "withdraw_amount":
+            print(f"🔍 DEBUG: Calling process_withdraw_amount for withdraw_id={state.get('withdraw_id')}")
+            await process_withdraw_amount(update, context)
+            return
+
+    # Then proceed with the rest of the logic
     if await process_rejection_reason(update, context):
         return
 
@@ -481,38 +508,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await process_withdraw_code(update, context)
                 return
 
-    # ✅ ADMIN STATES CHECK - MUST BE OUTSIDE AND AT THE BOTTOM
-    print(f"🔍 DEBUG: admin_states before check: {admin_states}")  # This line should appear
-    if user_id in admin_states:
-        state = admin_states[user_id]
-        action = state.get("action")
-        print(f"🔍 DEBUG: Found admin state action={action} for user {user_id}")
-        if action == "user_stats":
-            await process_user_stats(update, context)
-            return
-        elif action == "cashback":
-            step = state.get("step")
-            if step == "waiting_for_player_id":
-                await process_cashback_player_id(update, context)
-                return
-            elif step == "waiting_for_start_date":
-                await process_cashback_start_date(update, context)
-                return
-            elif step == "waiting_for_end_date":
-                await process_cashback_end_date(update, context)
-                return
-        elif action == "withdraw_amount":
-            print(f"🔍 DEBUG: Calling process_withdraw_amount for withdraw_id={state.get('withdraw_id')}")
-            await process_withdraw_amount(update, context)
-            return
-
     # Default reply
     await update.message.reply_text(
         "❌ *I don't understand that command.*\n\nPlease use the buttons below:",
         parse_mode="Markdown",
         reply_markup=get_main_menu_keyboard()
     )
-
 # ============================================
 # SHARE BOT
 # ============================================
