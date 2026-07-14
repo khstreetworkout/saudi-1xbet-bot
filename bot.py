@@ -137,37 +137,72 @@ user_states = {}
 admin_states = {}
 
 # ============================================
-# HELPER FUNCTIONS
+# HELPER FUNCTIONS - FIXED FOR OLD DATA FORMAT
 # ============================================
+
 def get_user_today_count(user_id, used_data):
+    """Get today's account count for a user (handles both old and new formats)"""
     if user_id not in used_data:
         return 0
+    entry = used_data[user_id]
+    # FIX: Handle old format (list) and new format (dict)
+    if isinstance(entry, list):
+        accounts = entry
+    else:
+        accounts = entry.get("accounts", [])
     today = datetime.now().strftime("%Y-%m-%d")
-    today_count = 0
-    for entry in used_data[user_id].get("accounts", []):
-        if entry.get("date") == today:
-            today_count += 1
-    return today_count
+    return sum(1 for a in accounts if a.get("date") == today)
 
 def get_user_accounts(user_id, used_data):
+    """Get list of account strings for a user (handles both old and new formats)"""
     if user_id not in used_data:
         return []
-    return [entry["account"] for entry in used_data[user_id].get("accounts", [])]
+    entry = used_data[user_id]
+    # FIX: Handle old format (list) and new format (dict)
+    if isinstance(entry, list):
+        return [a.get("account") for a in entry]
+    else:
+        return [a.get("account") for a in entry.get("accounts", [])]
+
+def get_user_username(user_id, used_data):
+    """Get username for a user (handles both old and new formats)"""
+    if user_id not in used_data:
+        return None
+    entry = used_data[user_id]
+    if isinstance(entry, dict):
+        return entry.get("username")
+    return None
 
 def update_user_data(user_id, username, account=None):
-    """Helper to update used_data with username and optional account"""
+    """Helper to save user data in new format, converting old format if needed"""
     used = load_used()
-    if user_id not in used:
-        used[user_id] = {"username": username, "accounts": []}
+    # If user exists in old format (list), convert to new format
+    if user_id in used and isinstance(used[user_id], list):
+        old_accounts = used[user_id]
+        used[user_id] = {
+            "username": username,
+            "accounts": old_accounts
+        }
+    elif user_id not in used:
+        used[user_id] = {
+            "username": username,
+            "accounts": []
+        }
     else:
+        # Ensure username is set
         if "username" not in used[user_id] or not used[user_id]["username"]:
             used[user_id]["username"] = username
         if "accounts" not in used[user_id]:
             used[user_id]["accounts"] = []
+    
     if account:
         used[user_id]["accounts"].append(account)
+    
     save_used(used)
 
+# ============================================
+# KEYBOARD FUNCTIONS
+# ============================================
 def get_main_menu_keyboard():
     keyboard = [
         ["🎰 Get Account", "💬 Talk to Agent"],
@@ -277,13 +312,7 @@ async def show_main_menu(update, context):
     username = update.effective_user.username or "NoUsername"
     
     # Ensure user data exists with username
-    used = load_used()
-    if user_id not in used:
-        used[user_id] = {"username": username, "accounts": []}
-        save_used(used)
-    elif "username" not in used[user_id] or not used[user_id]["username"]:
-        used[user_id]["username"] = username
-        save_used(used)
+    update_user_data(str(user_id), username)
     
     if user_id == ADMIN_ID:
         keyboard = get_admin_menu_keyboard()
@@ -594,24 +623,34 @@ async def handle_stats_buttons(update: Update, context: ContextTypes.DEFAULT_TYP
     elif message_text == "💰 Player ID Cashback":
         await show_cashback_calculator(update, context)
 
+# FIX: Updated to handle both old and new data formats
 async def show_overall_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Show overall bot statistics"""
+    """Show overall bot statistics - FIXED for old data format"""
     accounts = load_accounts()
     used_data = load_used()
     deposits = load_deposits()
     withdrawals = load_withdrawals()
     
     total_users = len(used_data)
-    total_accounts_given = sum(len(entry.get("accounts", [])) for entry in used_data.values())
+    total_accounts_given = 0
     today = datetime.now().strftime("%Y-%m-%d")
-    today_given = sum(1 for entry in used_data.values() for a in entry.get("accounts", []) if a.get("date") == today)
+    today_given = 0
+    
+    # FIX: Handle both old (list) and new (dict) formats
+    for entry in used_data.values():
+        if isinstance(entry, list):
+            user_accounts = entry
+        else:
+            user_accounts = entry.get("accounts", [])
+        total_accounts_given += len(user_accounts)
+        today_given += sum(1 for a in user_accounts if a.get("date") == today)
     
     # Deposit stats
     deposits_accepted = sum(1 for d in deposits.values() if d.get("status") == "completed")
     deposits_rejected = sum(1 for d in deposits.values() if d.get("status") == "rejected")
     total_deposit_amount = sum(d.get("amount", 0) for d in deposits.values() if d.get("status") == "completed")
     
-    # Withdraw stats (now with amount)
+    # Withdraw stats
     withdrawals_accepted = sum(1 for w in withdrawals.values() if w.get("status") == "completed")
     withdrawals_rejected = sum(1 for w in withdrawals.values() if w.get("status") == "rejected")
     total_withdraw_amount = sum(w.get("amount", 0) for w in withdrawals.values() if w.get("status") == "completed")
@@ -651,12 +690,12 @@ async def show_user_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=get_back_to_menu_keyboard()
     )
 
+# FIX: Updated to handle both old and new data formats
 async def process_user_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Process username input and show user stats"""
+    """Process username input and show user stats - FIXED for old data format"""
     user_id = str(update.effective_user.id)
     username_input = update.message.text.strip()
     
-    # Remove @ if present
     if username_input.startswith("@"):
         username_input = username_input[1:]
     
@@ -665,14 +704,16 @@ async def process_user_stats(update: Update, context: ContextTypes.DEFAULT_TYPE)
     withdrawals = load_withdrawals()
     shares = load_shares()
     
-    # Find user by Telegram username in used_data
     found_user_id = None
     found_username = username_input
     
-    for uid, data in used_data.items():
-        if data.get("username", "").lower() == username_input.lower():
-            found_user_id = uid
-            break
+    # FIX: Search in new format (dict) first
+    for uid, entry in used_data.items():
+        if isinstance(entry, dict):
+            if entry.get("username", "").lower() == username_input.lower():
+                found_user_id = uid
+                break
+        # Old format doesn't store username, so skip
     
     # If not found, search in deposits/withdrawals
     if not found_user_id:
@@ -701,16 +742,14 @@ async def process_user_stats(update: Update, context: ContextTypes.DEFAULT_TYPE)
         admin_states.pop(user_id, None)
         return
     
-    # Get user data
-    user_data = used_data.get(found_user_id, {})
-    user_accounts = user_data.get("accounts", [])
+    # Get user data using helper functions
+    user_accounts = get_user_accounts(found_user_id, used_data)
     user_deposits = [d for d in deposits.values() if d.get("user_id") == found_user_id]
     user_withdrawals = [w for w in withdrawals.values() if w.get("user_id") == found_user_id]
     
-    # Calculate stats
     total_accounts = len(user_accounts)
     today = datetime.now().strftime("%Y-%m-%d")
-    given_today = sum(1 for a in user_accounts if a.get("date") == today)
+    given_today = get_user_today_count(found_user_id, used_data)
     
     deposits_accepted = sum(1 for d in user_deposits if d.get("status") == "completed")
     deposits_rejected = sum(1 for d in user_deposits if d.get("status") == "rejected")
@@ -834,7 +873,6 @@ async def process_cashback_end_date(update: Update, context: ContextTypes.DEFAUL
     deposits = load_deposits()
     withdrawals = load_withdrawals()
     
-    # Filter deposits by player_id and date range
     total_deposits = 0
     deposits_count = 0
     for d in deposits.values():
@@ -849,7 +887,6 @@ async def process_cashback_end_date(update: Update, context: ContextTypes.DEFAUL
                 except:
                     pass
     
-    # Filter withdrawals by player_id and date range
     total_withdrawals = 0
     withdrawals_count = 0
     for w in withdrawals.values():
@@ -865,7 +902,7 @@ async def process_cashback_end_date(update: Update, context: ContextTypes.DEFAUL
                     pass
     
     net_amount = total_deposits - total_withdrawals
-    cashback = net_amount * 0.25  # 25% cashback
+    cashback = net_amount * 0.25
     
     admin_states.pop(user_id, None)
     
@@ -919,7 +956,6 @@ async def handle_get_account(update, user_id, used_data):
     today = datetime.now().strftime("%Y-%m-%d")
     username = update.effective_user.username or "NoUsername"
     
-    # Save account and username to used_data
     update_user_data(user_id, username, {"account": account, "date": today, "timestamp": datetime.now().isoformat()})
     
     remaining = len(accounts)
@@ -1159,7 +1195,6 @@ async def process_deposit_method(update: Update, context: ContextTypes.DEFAULT_T
     user_states[user_id]["method"] = method_key
     user_states[user_id]["step"] = "amount"
     
-    # Show admin's details for this method
     method = methods[method_key]
     details_text = "\n".join([f"📋 {field}: {value}" for field, value in method["details"].items()])
     
@@ -1201,7 +1236,6 @@ async def process_deposit_amount(update: Update, context: ContextTypes.DEFAULT_T
     methods = load_payment_methods()
     method_name = methods[user_states[user_id]["method"]]["name"]
     
-    # Update user data with username
     update_user_data(user_id, update.effective_user.username or "NoUsername", None)
     
     await update.message.reply_text(
@@ -1242,7 +1276,6 @@ async def handle_receipt(update: Update, context: ContextTypes.DEFAULT_TYPE):
     save_deposits(deposits)
     user_states[user_id] = {}
     
-    # Ensure user data has username
     update_user_data(user_id, update.effective_user.username or "NoUsername", None)
     
     await update.message.reply_text(
@@ -1424,7 +1457,6 @@ async def process_withdraw_code(update: Update, context: ContextTypes.DEFAULT_TY
     save_withdrawals(withdrawals)
     user_states[user_id] = {}
     
-    # Update user data with username
     update_user_data(user_id, update.effective_user.username or "NoUsername", None)
     
     await update.message.reply_text(
@@ -1466,7 +1498,7 @@ async def notify_accountant_withdraw(update, context, withdraw_id, withdraw_data
         traceback.print_exc()
 
 # ============================================
-# ACCOUNTANT HANDLERS (with amount input)
+# ACCOUNTANT HANDLERS
 # ============================================
 
 async def handle_accountant_action(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1506,7 +1538,6 @@ async def handle_accountant_action(update: Update, context: ContextTypes.DEFAULT
             return
         
         if action == "accept":
-            # Ask for amount before accepting
             admin_states[str(update.effective_user.id)] = {
                 "action": "withdraw_amount",
                 "withdraw_id": request_id
@@ -1522,7 +1553,6 @@ async def handle_accountant_action(update: Update, context: ContextTypes.DEFAULT
             await query.edit_message_text(f"❌ *Reject Withdrawal*\n\nRequest ID: `{request_id}`\n\nPlease send the reason for rejection:", parse_mode="Markdown")
 
 async def process_withdraw_amount(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Process the amount entered by accountant for withdrawal"""
     user_id = str(update.effective_user.id)
     amount_text = update.message.text.strip()
     
@@ -1545,13 +1575,11 @@ async def process_withdraw_amount(update: Update, context: ContextTypes.DEFAULT_
         admin_states.pop(user_id, None)
         return
     
-    # Update withdrawal with amount and status
     withdrawals[withdraw_id]["amount"] = amount
     withdrawals[withdraw_id]["status"] = "completed"
     save_withdrawals(withdrawals)
     admin_states.pop(user_id, None)
     
-    # Notify user
     user_id_user = withdrawals[withdraw_id]["user_id"]
     await context.bot.send_message(
         chat_id=user_id_user,
@@ -1750,7 +1778,6 @@ async def handle_pm_state(update: Update, context: ContextTypes.DEFAULT_TYPE):
             state["value_index"] += 1
             
             if state["value_index"] >= len(state["fields"]):
-                # Save the method
                 key = state["key"]
                 methods[key] = {
                     "name": state["name"],
@@ -1811,11 +1838,9 @@ async def handle_pm_state(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     await update.message.reply_text("❌ *Invalid fields!*", parse_mode="Markdown")
                     return
             elif field == "details":
-                # Handle details update
                 await update.message.reply_text("❌ *To edit details, edit individual fields.*", parse_mode="Markdown")
                 return
             else:
-                # It's a detail field
                 methods[key][field] = message_text
             save_payment_methods(methods)
             admin_states.pop(user_id, None)
