@@ -888,16 +888,17 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     used_data = load_used()
     
     # ============================================
-    # SKIP ALL BOT FEATURES IN THE GROUP
+    # COMPLETELY IGNORE ALL MESSAGES IN THE GROUP
     # ============================================
+    GROUP_CHAT_ID = -1004309440596
+    
     if chat_id == GROUP_CHAT_ID:
         # Only handle new member welcome messages
         if update.message and update.message.new_chat_members:
             # Let the welcome handler do its job
             pass
-        else:
-            # Ignore everything else in the group
-            return
+        # Ignore EVERYTHING else in the group - no replies, no buttons, nothing
+        return
     
     await update.message.chat.send_action(action="typing")
 
@@ -1125,7 +1126,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="Markdown",
         reply_markup=get_main_menu_keyboard(user_id)
     )
-
 # ============================================
 # SHARE BOT
 # ============================================
