@@ -323,11 +323,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     used_data = load_used()
     await update.message.chat.send_action(action="typing")
 
-    # 1. Rejection reason
     if await process_rejection_reason(update, context):
         return
 
-    # 2. Video state check
+    # Video state check
     if user_id in admin_states and admin_states[user_id].get("action") == "add_video":
         print(f"📹 User {user_id} in add_video state")
         if update.message.video or (update.message.document and update.message.document.mime_type and update.message.document.mime_type.startswith('video/')):
@@ -345,7 +344,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("📹 *Please send a video file!*\n\nType /cancel to cancel.", parse_mode="Markdown")
             return
 
-    # 3. Photo (receipt)
     if update.message.photo:
         await handle_receipt(update, context)
         return
@@ -353,19 +351,18 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     message_text = update.message.text if update.message.text else ""
     print(f"🔍 DEBUG: handle_message received: '{message_text}' from user {user_id}")
 
-    # 4. Back to Menu
     if message_text == "🔙 Back to Menu":
         admin_states.pop(user_id, None)
         await show_main_menu(update, context)
         return
 
-    # 5. Admin: Stats Menu
+    # Admin: Stats Menu
     if update.effective_user.id == ADMIN_ID:
         if message_text in ["📊 Overall Stats", "👤 User Stats", "💰 Player ID Cashback"]:
             await handle_stats_buttons(update, context)
             return
 
-    # 6. Admin: Payment Methods Management
+    # Admin: Payment Methods Management
     if update.effective_user.id == ADMIN_ID:
         if user_id in admin_states:
             await handle_pm_state(update, context)
@@ -374,7 +371,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await handle_pm_buttons(update, context)
             return
 
-    # 7. Admin Commands from buttons
+    # Admin Commands from buttons
     if message_text == "➕ /ass":
         if update.effective_user.id != ADMIN_ID:
             await update.message.reply_text("⛔ *Unauthorized!*", parse_mode="Markdown")
@@ -411,7 +408,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await manage_payment_methods(update, context)
         return
 
-    # 8. Video Tutorials
+    # Video Tutorials
     if message_text == "📹 Video Tutorials":
         await show_video_tutorials(update, context)
         return
@@ -419,12 +416,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await handle_video_buttons(update, context)
         return
 
-    # 9. Share Bot
+    # Share Bot
     if message_text == "📢 Share Bot":
         await handle_share_bot(update, context)
         return
 
-    # 10. User Features
+    # User Features
     if message_text in ["🎰 Get Account", "🎰 Get Another Account"]:
         await handle_get_account(update, user_id, used_data)
         return
@@ -455,7 +452,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await start_withdraw(update, context)
         return
 
-    # 11. User states (deposit/withdraw flows)
+    # Handle user states (deposit/withdraw flows)
     if user_id in user_states:
         state = user_states[user_id]
         action = state.get("action")
@@ -484,8 +481,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await process_withdraw_code(update, context)
                 return
 
-    # 12. ✅ ADMIN STATES CHECK - MOVED HERE (ABOVE THE DEFAULT REPLY)
-    print(f"🔍 DEBUG: admin_states before check: {admin_states}")
+    # ✅ ADMIN STATES CHECK - MUST BE OUTSIDE AND AT THE BOTTOM
+    print(f"🔍 DEBUG: admin_states before check: {admin_states}")  # This line should appear
     if user_id in admin_states:
         state = admin_states[user_id]
         action = state.get("action")
