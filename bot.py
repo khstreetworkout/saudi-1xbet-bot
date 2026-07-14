@@ -1401,6 +1401,29 @@ async def ask_withdraw_code(update, context):
     state = user_states[user_id]
     state["step"] = "code"
     
+    # Load videos to find the withdrawal tutorial
+    videos = load_videos()
+    video_to_send = None
+    
+    # Look for the withdrawal video by title or ID
+    for video_id, video_data in videos.items():
+        if "Withdrawal" in video_data['title'] or "withdrawal" in video_data['title'].lower():
+            video_to_send = video_data
+            break
+    
+    # Send the video first if found
+    if video_to_send:
+        try:
+            await update.message.reply_video(
+                video=video_to_send['file_id'],
+                caption=f"🎬 *{video_to_send['title']}*\n\n"
+                        f"📹 Watch this tutorial for step-by-step instructions!",
+                parse_mode="Markdown"
+            )
+        except Exception as e:
+            print(f"Error sending withdrawal video: {e}")
+    
+    # Then send the text instructions
     await update.message.reply_text(
         "💸 *Withdraw Process*\n\n"
         "Step 3/3: Enter withdrawal code\n\n"
