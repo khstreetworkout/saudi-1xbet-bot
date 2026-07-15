@@ -222,6 +222,7 @@ LANGUAGES = {
         "video_list_item": "🆔 ID: `{vid}`\n🎬 Title: {title}\n📅 Added: {date}",
         "withdraw_video_caption": "🎬 *{title}*\n\n📹 Watch this tutorial for step-by-step instructions!",
         # --------------------------
+        "cashback_video_caption": "🎬 *Cashback Tutorial*\n\n📹 Watch this tutorial to learn how to get 5% cashback and more in the 1xBet app!\n\n💰 After watching, request your remaining 25% cashback below.",
     },
     "ar": {
         # Bot name and welcome
@@ -443,6 +444,7 @@ LANGUAGES = {
         "video_list_item": "🆔 المعرف: `{vid}`\n🎬 العنوان: {title}\n📅 تاريخ الإضافة: {date}",
         "withdraw_video_caption": "🎬 *{title}*\n\n📹 شاهد هذا الفيديو التعليمي للحصول على التعليمات خطوة بخطوة!",
         # --------------------------
+        "cashback_video_caption": "🎬 *دروس الكاش باك*\n\n📹 شاهد هذا الفيديو التعليمي لمعرفة كيفية الحصول على 5% كاش باك والمزيد في تطبيق 1xBet!\n\n💰 بعد المشاهدة، اطلب الـ 25% المتبقية من الكاش باك أدناه.",
     }
 }
 
