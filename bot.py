@@ -824,15 +824,16 @@ async def process_cashback_rejection_reason(update: Update, context: ContextType
             text=(
                 f"❌ *Cashback Request Rejected!*\n\n"
                 f"📋 *Reason:*\n{reason}\n\n"
-                f"📞 For more information, contact our agent.",
-                parse_mode="Markdown"
-            )
+                f"📞 For more information, contact our agent."
+            ),
+            parse_mode="Markdown"
         )
     except Exception as e:
         print(f"Error notifying user: {e}")
     
     await update.message.reply_text(
         "✅ Rejection reason sent to user.",
+        parse_mode="Markdown",
         reply_markup=get_admin_menu_keyboard(user_id)
     )
     
