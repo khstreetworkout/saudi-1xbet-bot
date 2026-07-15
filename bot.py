@@ -574,6 +574,46 @@ async def cashback_request(update: Update, context: ContextTypes.DEFAULT_TYPE):
         t(user_id, "cashback_request_message"),
         parse_mode="Markdown"
     )
+
+async def process_cashback_player_id_request(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Process player ID for cashback request"""
+    user_id = str(update.effective_user.id)
+    
+    if user_id not in cashback_requests:
+        return
+    
+    if cashback_requests[user_id].get("step") != "waiting_for_player_id":
+        return
+    
+    player_id = update.message.text.strip()
+    if not player_id.isdigit():
+        await update.message.reply_text(
+            t(user_id, "invalid_player_id"),
+            parse_mode="Markdown"
+        )
+        return
+    
+    cashback_requests[user_id]["player_id"] = player_id
+    cashback_requests[user_id]["step"] = "waiting_for_confirmation"
+    cashback_requests[user_id]["username"] = update.effective_user.username or "NoUsername"
+    cashback_requests[user_id]["user_id"] = user_id
+    
+    # Show confirmation
+    keyboard = [
+        [InlineKeyboardButton("✅ Confirm", callback_data=f"cashback_confirm_{user_id}")],
+        [InlineKeyboardButton("❌ Cancel", callback_data=f"cashback_cancel_{user_id}")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await update.message.reply_text(
+        f"✅ *Player ID:* `{player_id}`\n\n"
+        f"📊 *Calculating your cashback...*\n\n"
+        f"🔄 Please wait while we verify your account.\n\n"
+        f"Click 'Confirm' to proceed with the request.",
+        parse_mode="Markdown",
+        reply_markup=reply_markup
+    )
+    
 async def process_cashback_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Confirm and send cashback request to admin"""
     query = update.callback_query
