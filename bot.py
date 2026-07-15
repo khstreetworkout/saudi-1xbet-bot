@@ -393,7 +393,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ============================================
 
 async def welcome_new_member(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Send welcome message - Private DM with name, Public group without name"""
+    """Send welcome message - Private DM with name + buttons, Public group without name + buttons"""
     chat_id = update.effective_chat.id
     
     # Only trigger in your group
@@ -417,7 +417,16 @@ async def welcome_new_member(update: Update, context: ContextTypes.DEFAULT_TYPE)
         lang = get_user_language(user_id)
         
         # ============================================
-        # 1. SEND PRIVATE DM WITH NAME
+        # CREATE BUTTONS (SAME FOR BOTH MESSAGES)
+        # ============================================
+        keyboard = [
+            [InlineKeyboardButton("🎰 Open Bot" if lang == "en" else "🎰 افتح البوت", url="https://t.me/Saudi_1xBet_bot?start=group")],
+            [InlineKeyboardButton("📞 Contact Agent" if lang == "en" else "📞 تواصل مع الوكيل", url="https://t.me/Saudi_1xbet_agent")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        # ============================================
+        # 1. SEND PRIVATE DM WITH NAME + BUTTONS
         # ============================================
         if lang == "ar":
             dm_text = (
@@ -440,26 +449,20 @@ async def welcome_new_member(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 f"🔥 *Enjoy our services!*"
             )
         
-        keyboard = [
-            [InlineKeyboardButton("🎰 Open Bot" if lang == "en" else "🎰 افتح البوت", url="https://t.me/Saudi_1xBet_bot?start=group")],
-            [InlineKeyboardButton("📞 Contact Agent" if lang == "en" else "📞 تواصل مع الوكيل", url="https://t.me/Saudi_1xbet_agent")]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        
         # Send PRIVATE DM to the user
         try:
             await context.bot.send_message(
                 chat_id=user_id,  # Send to user's private chat
                 text=dm_text,
                 parse_mode="Markdown",
-                reply_markup=reply_markup
+                reply_markup=reply_markup  # ✅ WITH buttons
             )
             print(f"✅ Welcome DM sent to {user_id} ({username})")
         except Exception as e:
             print(f"❌ Could not send DM to {user_id}: {e}")
         
         # ============================================
-        # 2. SEND PUBLIC GROUP WELCOME (WITHOUT NAME)
+        # 2. SEND PUBLIC GROUP WELCOME (NO NAME) + BUTTONS
         # ============================================
         if lang == "ar":
             group_text = (
@@ -482,13 +485,13 @@ async def welcome_new_member(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 f"🔥 *Enjoy our services!*"
             )
         
-        # Send to the group WITHOUT buttons
+        # Send to the group WITH buttons
         await context.bot.send_message(
             chat_id=chat_id,  # Send to the group
             text=group_text,
-            parse_mode="Markdown"
+            parse_mode="Markdown",
+            reply_markup=reply_markup  # ✅ WITH buttons
         )
-
 # ============================================
 # ADMIN POST CREATION SYSTEM
 # ============================================
