@@ -347,11 +347,29 @@ async def language_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = query.from_user.id
     lang = query.data.split("_")[1]
     set_user_language(user_id, lang)
+    
     if lang == "ar":
         msg = t(user_id, "language_saved_ar")
     else:
         msg = t(user_id, "language_saved")
+    
     await query.message.reply_text(msg, parse_mode="Markdown")
+    
+    # ✅ CHECK CHANNEL MEMBERSHIP AFTER LANGUAGE SELECTION
+    is_member = await is_user_member(user_id, "saudi_1xbet_accounts", context)
+    if not is_member:
+        keyboard = [
+            [InlineKeyboardButton(t(user_id, "join_channel_button"), url="https://t.me/saudi_1xbet_accounts")],
+            [InlineKeyboardButton(t(user_id, "check_subscription"), callback_data="check_subscription")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.message.reply_text(
+            t(user_id, "join_channel"),
+            parse_mode="Markdown",
+            reply_markup=reply_markup
+        )
+        return
+    
     await show_main_menu_from_callback(query, context)
 
 async def show_main_menu_from_callback(query, context):
