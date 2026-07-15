@@ -189,6 +189,8 @@ def add_cashback_history(player_id, request_data):
     history[player_id_str].append({
         "request_id": request_data.get("request_id"),
         "date": datetime.now().isoformat(),
+        "period_start": request_data.get("period_start"),
+        "period_end": request_data.get("period_end"),
         "amount": request_data.get("cashback_amount", 0),
         "net_amount": request_data.get("net_amount", 0),
         "status": request_data.get("status", "pending")
@@ -669,7 +671,6 @@ async def process_cashback_confirm(update: Update, context: ContextTypes.DEFAULT
     # CALCULATE CASHBACK WITH WEEKLY LOGIC
     # ============================================
     
-    # Load all deposits and withdrawals
     deposits = load_deposits()
     withdrawals = load_withdrawals()
     
@@ -685,25 +686,25 @@ async def process_cashback_confirm(update: Update, context: ContextTypes.DEFAULT
                 created_at = d.get("created_at", "")
                 if created_at:
                     try:
-                        # Extract date from timestamp
                         date_part = created_at.split("T")[0] if "T" in created_at else created_at[:10]
                         if start_date is None or date_part < start_date:
                             start_date = date_part
                     except:
                         pass
-        
         if not start_date:
-            # If no deposits found, use current date
             start_date = datetime.now().strftime("%Y-%m-%d")
     else:
-        # SUBSEQUENT REQUESTS: Start from the last cashback request date
+        # SUBSEQUENT REQUESTS: Start from the day after the previous period ended
         last_request = history[-1]
-        last_date = last_request.get("date", "")
-        if last_date:
-            # Extract date from the last request
-            start_date = last_date.split("T")[0] if "T" in last_date else last_date[:10]
+        prev_period_end = last_request.get("period_end")
+        if prev_period_end:
+            prev_end_dt = datetime.strptime(prev_period_end, "%Y-%m-%d")
+            start_dt = prev_end_dt + timedelta(days=1)
+            start_date = start_dt.strftime("%Y-%m-%d")
         else:
-            start_date = datetime.now().strftime("%Y-%m-%d")
+            # Fallback to the stored date (acceptance date)
+            last_date = last_request.get("date", "")
+            start_date = last_date.split("T")[0] if last_date else datetime.now().strftime("%Y-%m-%d")
     
     # Calculate end date (7 days after start date)
     start_datetime = datetime.strptime(start_date, "%Y-%m-%d")
@@ -743,7 +744,6 @@ async def process_cashback_confirm(update: Update, context: ContextTypes.DEFAULT
     net_amount = total_deposits - total_withdrawals
     cashback_amount = net_amount * 0.25  # 25% cashback
     
-    # Calculate days until next cashback
     days_since_start = (datetime.now() - start_datetime).days
     days_until_next = 7 - days_since_start
     if days_until_next < 0:
@@ -763,16 +763,14 @@ async def process_cashback_confirm(update: Update, context: ContextTypes.DEFAULT
     cashback_requests[user_id]["days_until_next"] = days_until_next
     cashback_requests[user_id]["status"] = "pending"
     
-    # Notify admin (in admin's language)
+    # Notify admin
     admin_id = ADMIN_ID
     
-    # Build period info for admin
     if len(history) == 0:
         period_info = f"🆕 *First Request*\n📅 Period: {start_date} to {end_date} (7 days)\n"
     else:
         if days_since_start > 7:
             overdue_days = days_since_start - 7
-            status_icon = "⚠️"
             status_text = f"OVERDUE by {overdue_days} days ❌"
         elif days_since_start == 7:
             status_text = "On time ✅"
@@ -809,10 +807,7 @@ async def process_cashback_confirm(update: Update, context: ContextTypes.DEFAULT
         reply_markup=reply_markup
     )
     
-    # Save request to file
     save_cashback_request(request_id, cashback_requests[user_id])
-    
-    # Clear the state
     cashback_requests.pop(user_id, None)
     
     await query.edit_message_text(
@@ -821,7 +816,7 @@ async def process_cashback_confirm(update: Update, context: ContextTypes.DEFAULT
           cashback_amount=cashback_amount),
         parse_mode="Markdown"
     )
-
+    
 async def process_cashback_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Cancel cashback request"""
     query = update.callback_query
