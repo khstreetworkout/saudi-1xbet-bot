@@ -65,7 +65,7 @@ LANGUAGES = {
         "user_stats_result": "👤 *User Stats for @{username}*\n\n📤 *Total Accounts Given:* {total_accounts}\n📅 *Given Today:* {given_today}\n\n💳 *Deposit Stats:*\n   ✅ Accepted: {deposits_accepted}\n   ❌ Rejected: {deposits_rejected}\n   💵 Total Accepted Amount: {total_deposit_amount:,.0f} SAR\n\n💸 *Withdraw Stats:*\n   ✅ Accepted: {withdrawals_accepted}\n   ❌ Rejected: {withdrawals_rejected}\n   💵 Total Accepted Amount: {total_withdraw_amount:,.0f} SAR\n\n📢 *Times shared bot:* {share_count}",
         "user_not_found": "❌ *User not found!*\n\nNo user found with username `{username}`.",
         
-        # Cashback
+        # Cashback Calculator (Admin)
         "cashback_title": "💰 *Player ID Cashback Calculator*",
         "cashback_step1": "Step 1/3: Enter the Player ID\n\n📝 *Example:* `123456789`\n\nType /cancel to cancel.",
         "cashback_step2": "✅ Player ID: `{player_id}`\n\nStep 2/3: Enter the start date\n\n📝 *Format:* `YYYY-MM-DD`\n📌 *Example:* `2026-07-01`\n\nType /cancel to cancel.",
@@ -73,6 +73,25 @@ LANGUAGES = {
         "invalid_player_id": "❌ *Invalid Player ID!*\n\nPlease enter a numeric Player ID.",
         "invalid_date": "❌ *Invalid date format!*\n\nPlease use the format: `YYYY-MM-DD`",
         "cashback_result": "💰 *Cashback Calculation*\n\n🆔 Player ID: `{player_id}`\n📅 Period: {start_date} to {end_date}\n\n📊 *Summary:*\n   💳 Deposits Accepted: {deposits_count} ({total_deposits:,.0f} SAR)\n   💸 Withdrawals Accepted: {withdrawals_count} ({total_withdrawals:,.0f} SAR)\n   📊 Net Amount: {net_amount:,.0f} SAR\n\n🎯 *Cashback ({percent}%):* `{cashback:,.2f} SAR`\n\n📌 *Formula:* {percent}% × (Deposits - Withdrawals)",
+        
+        # Cashback Request System (User)
+        "cashback_video_caption": "🎬 *Cashback Tutorial*\n\n📹 Watch this tutorial to learn how to get 5% cashback and more in the 1xBet app!\n\n💰 After watching, request your remaining 25% cashback below.",
+        "cashback_video_not_found": "📹 *Video not found!*\n\nPlease contact admin.",
+        "cashback_request_message": "💰 *30% Cashback Request*\n\n📌 *How it works:*\n• You already get 5% cashback in the app\n• Request the remaining 25% here\n\n📝 *Step 1/2:* Enter your 1xBet Player ID\n\nExample: `123456789`\n\nType /cancel to cancel.",
+        "cashback_confirm_message": "✅ *Player ID:* `{player_id}`\n\n📊 *Calculating your cashback...*\n\n🔄 Please wait while we verify your account.\n\nClick 'Confirm' to proceed with the request.",
+        "cashback_session_expired": "❌ *Session expired!*\n\nPlease start a new request.",
+        "cashback_submitted": "✅ *Cashback Request Submitted!*\n\n🆔 Player ID: `{player_id}`\n💰 Requested Amount: {cashback_amount:,.2f} SAR\n\n⏳ Please wait for admin approval.\nYou will be notified once processed.\n\n📞 For urgent inquiries, contact our agent.",
+        "cashback_cancelled": "❌ *Cashback Request Cancelled!*",
+        "cashback_approved": "✅ *Cashback Approved!*\n\n💰 Amount: *{cashback_amount:,.2f} SAR*\n🆔 Player ID: `{player_id}`\n\n🎉 Cashback has been added to your account!\n📅 It will reflect in your 1xBet account within 24 hours.\n\nThank you for being with us! 🎰",
+        "cashback_rejected": "❌ *Cashback Request Rejected!*\n\n📋 *Reason:*\n{reason}\n\n📞 For more information, contact our agent.",
+        "confirm_button": "✅ Confirm",
+        "cancel_button": "❌ Cancel",
+        
+        # Cashback Admin
+        "cashback_admin_notification": "💰 *New Cashback Request*\n\n🆔 Request ID: `{request_id}`\n👤 User: @{username}\n🆔 Player ID: `{player_id}`\n\n📊 *Calculation:*\n   💳 Total Deposits: {total_deposits:,.0f} SAR\n   💸 Total Withdrawals: {total_withdrawals:,.0f} SAR\n   📊 Net Amount: {net_amount:,.0f} SAR\n   🎯 25% Cashback: *{cashback_amount:,.2f} SAR*\n\nPlease review and respond:",
+        "cashback_request_not_found": "❌ *Request not found!*",
+        "cashback_accepted_admin": "✅ *Cashback Accepted!*\n\nRequest ID: `{request_id}`\nAmount: {cashback_amount:,.2f} SAR\nUser notified.",
+        "cashback_reject_prompt": "❌ *Reject Cashback*\n\nRequest ID: `{request_id}`\n\nPlease send the reason for rejection:",
         
         # Deposit & Withdraw
         "deposit_withdraw_menu": "💳 *Deposit & Withdrawal*\n\n👇 *Select an option below:*",
@@ -216,26 +235,11 @@ LANGUAGES = {
         # Stats menu options
         "stats_menu_options": "📊 *Statistics Menu*\n\nSelect an option below:",
 
-        # ----- NEW KEYS ADDED -----
+        # ----- VIDEO KEYS -----
         "receipt_caption": "📸 Receipt for Deposit {deposit_id}",
         "video_play_caption": "🎬 *{title}*\n\n📹 Tutorial Video\n📅 Added: {date}",
         "video_list_item": "🆔 ID: `{vid}`\n🎬 Title: {title}\n📅 Added: {date}",
         "withdraw_video_caption": "🎬 *{title}*\n\n📹 Watch this tutorial for step-by-step instructions!",
-        # --------------------------
-        "cashback_video_caption": "🎬 *Cashback Tutorial*\n\n📹 Watch this tutorial to learn how to get 5% cashback and more in the 1xBet app!\n\n💰 After watching, request your remaining 25% cashback below.",
-
-        "cashback_video_not_found": "📹 *Video not found!*\n\nPlease contact admin.",
-        "cashback_request_message": (
-            "💰 *30% Cashback Request*\n\n"
-            "📌 *How it works:*\n"
-            "• You already get 5% cashback in the app\n"
-            "• Request the remaining 25% here\n\n"
-            "📝 *Step 1/2:* Enter your 1xBet Player ID\n\n"
-            "Example: `123456789`\n\n"
-            "Type /cancel to cancel."
-        ),
-    
-    
     },
     "ar": {
         # Bot name and welcome
@@ -300,7 +304,7 @@ LANGUAGES = {
         "user_stats_result": "👤 *إحصائيات المستخدم @{username}*\n\n📤 *إجمالي الحسابات المسلمة:* {total_accounts}\n📅 *المسلمة اليوم:* {given_today}\n\n💳 *إحصائيات الإيداع:*\n   ✅ مقبولة: {deposits_accepted}\n   ❌ مرفوضة: {deposits_rejected}\n   💵 إجمالي المبلغ المقبول: {total_deposit_amount:,.0f} ريال\n\n💸 *إحصائيات السحب:*\n   ✅ مقبولة: {withdrawals_accepted}\n   ❌ مرفوضة: {withdrawals_rejected}\n   💵 إجمالي المبلغ المقبول: {total_withdraw_amount:,.0f} ريال\n\n📢 *عدد مشاركات البوت:* {share_count}",
         "user_not_found": "❌ *المستخدم غير موجود!*\n\nلم يتم العثور على مستخدم باسم `{username}`.",
         
-        # Cashback
+        # Cashback Calculator (Admin)
         "cashback_title": "💰 *حاسبة كاش باك معرف اللاعب*",
         "cashback_step1": "الخطوة 1/3: أدخل معرف اللاعب\n\n📝 *مثال:* `123456789`\n\nاكتب /cancel للإلغاء.",
         "cashback_step2": "✅ معرف اللاعب: `{player_id}`\n\nالخطوة 2/3: أدخل تاريخ البداية\n\n📝 *الصيغة:* `YYYY-MM-DD`\n📌 *مثال:* `2026-07-01`\n\nاكتب /cancel للإلغاء.",
@@ -308,6 +312,25 @@ LANGUAGES = {
         "invalid_player_id": "❌ *معرف لاعب غير صالح!*\n\nيرجى إدخال معرف لاعب رقمي.",
         "invalid_date": "❌ *صيغة تاريخ غير صالحة!*\n\nيرجى استخدام الصيغة: `YYYY-MM-DD`",
         "cashback_result": "💰 *نتيجة حساب الكاش باك*\n\n🆔 معرف اللاعب: `{player_id}`\n📅 الفترة: {start_date} إلى {end_date}\n\n📊 *الملخص:*\n   💳 الإيداعات المقبولة: {deposits_count} ({total_deposits:,.0f} ريال)\n   💸 السحوبات المقبولة: {withdrawals_count} ({total_withdrawals:,.0f} ريال)\n   📊 صافي المبلغ: {net_amount:,.0f} ريال\n\n🎯 *الكاش باك ({percent}%):* `{cashback:,.2f} ريال`\n\n📌 *المعادلة:* {percent}% × (الإيداعات - السحوبات)",
+        
+        # Cashback Request System (User)
+        "cashback_video_caption": "🎬 *دروس الكاش باك*\n\n📹 شاهد هذا الفيديو التعليمي لمعرفة كيفية الحصول على 5% كاش باك والمزيد في تطبيق 1xBet!\n\n💰 بعد المشاهدة، اطلب الـ 25% المتبقية من الكاش باك أدناه.",
+        "cashback_video_not_found": "📹 *الفيديو غير موجود!*\n\nيرجى الاتصال بالمدير.",
+        "cashback_request_message": "💰 *طلب كاش باك 30%*\n\n📌 *كيف يعمل:*\n• تحصل بالفعل على 5% كاش باك في التطبيق\n• اطلب الـ 25% المتبقية هنا\n\n📝 *الخطوة 1/2:* أدخل معرف اللاعب في 1xBet\n\nمثال: `123456789`\n\nاكتب /cancel للإلغاء.",
+        "cashback_confirm_message": "✅ *معرف اللاعب:* `{player_id}`\n\n📊 *جاري حساب الكاش باك الخاص بك...*\n\n🔄 يرجى الانتظار أثناء التحقق من حسابك.\n\nاضغط 'تأكيد' للمتابعة مع الطلب.",
+        "cashback_session_expired": "❌ *انتهت الجلسة!*\n\nيرجى بدء طلب جديد.",
+        "cashback_submitted": "✅ *تم تقديم طلب الكاش باك!*\n\n🆔 معرف اللاعب: `{player_id}`\n💰 المبلغ المطلوب: {cashback_amount:,.2f} ريال\n\n⏳ يرجى الانتظار حتى موافقة المدير.\nسيتم إعلامك عند المعالجة.\n\n📞 للاستفسارات العاجلة، تواصل مع وكيلنا.",
+        "cashback_cancelled": "❌ *تم إلغاء طلب الكاش باك!*",
+        "cashback_approved": "✅ *تمت الموافقة على الكاش باك!*\n\n💰 المبلغ: *{cashback_amount:,.2f} ريال*\n🆔 معرف اللاعب: `{player_id}`\n\n🎉 تم إضافة الكاش باك إلى حسابك!\n📅 سيظهر في حسابك في 1xBet خلال 24 ساعة.\n\nشكراً لثقتك بنا! 🎰",
+        "cashback_rejected": "❌ *تم رفض طلب الكاش باك!*\n\n📋 *السبب:*\n{reason}\n\n📞 للمزيد من المعلومات، تواصل مع وكيلنا.",
+        "confirm_button": "✅ تأكيد",
+        "cancel_button": "❌ إلغاء",
+        
+        # Cashback Admin
+        "cashback_admin_notification": "💰 *طلب كاش باك جديد*\n\n🆔 معرف الطلب: `{request_id}`\n👤 المستخدم: @{username}\n🆔 معرف اللاعب: `{player_id}`\n\n📊 *الحساب:*\n   💳 إجمالي الإيداعات: {total_deposits:,.0f} ريال\n   💸 إجمالي السحوبات: {total_withdrawals:,.0f} ريال\n   📊 صافي المبلغ: {net_amount:,.0f} ريال\n   🎯 25% كاش باك: *{cashback_amount:,.2f} ريال*\n\nيرجى المراجعة والرد:",
+        "cashback_request_not_found": "❌ *الطلب غير موجود!*",
+        "cashback_accepted_admin": "✅ *تم قبول الكاش باك!*\n\nمعرف الطلب: `{request_id}`\nالمبلغ: {cashback_amount:,.2f} ريال\nتم إعلام المستخدم.",
+        "cashback_reject_prompt": "❌ *رفض الكاش باك*\n\nمعرف الطلب: `{request_id}`\n\nيرجى إرسال سبب الرفض:",
         
         # Deposit & Withdraw
         "deposit_withdraw_menu": "💳 *الإيداع والسحب*\n\n👇 *اختر خياراً أدناه:*",
@@ -451,23 +474,11 @@ LANGUAGES = {
         # Stats menu options
         "stats_menu_options": "📊 *قائمة الإحصائيات*\n\nاختر خياراً أدناه:",
 
-        # ----- NEW KEYS ADDED -----
+        # ----- VIDEO KEYS -----
         "receipt_caption": "📸 إيصال الإيداع {deposit_id}",
         "video_play_caption": "🎬 *{title}*\n\n📹 فيديو تعليمي\n📅 تاريخ الإضافة: {date}",
         "video_list_item": "🆔 المعرف: `{vid}`\n🎬 العنوان: {title}\n📅 تاريخ الإضافة: {date}",
         "withdraw_video_caption": "🎬 *{title}*\n\n📹 شاهد هذا الفيديو التعليمي للحصول على التعليمات خطوة بخطوة!",
-        # --------------------------
-        "cashback_video_caption": "🎬 *دروس الكاش باك*\n\n📹 شاهد هذا الفيديو التعليمي لمعرفة كيفية الحصول على 5% كاش باك والمزيد في تطبيق 1xBet!\n\n💰 بعد المشاهدة، اطلب الـ 25% المتبقية من الكاش باك أدناه.",
-        "cashback_video_not_found": "📹 *الفيديو غير موجود!*\n\nيرجى الاتصال بالمدير.",
-        "cashback_request_message": (
-            "💰 *طلب كاش باك 30%*\n\n"
-            "📌 *كيف يعمل:*\n"
-            "• تحصل بالفعل على 5% كاش باك في التطبيق\n"
-            "• اطلب الـ 25% المتبقية هنا\n\n"
-            "📝 *الخطوة 1/2:* أدخل معرف اللاعب في 1xBet\n\n"
-            "مثال: `123456789`\n\n"
-            "اكتب /cancel للإلغاء."
-        ),
     }
 }
 
