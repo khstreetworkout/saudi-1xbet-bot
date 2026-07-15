@@ -223,6 +223,19 @@ LANGUAGES = {
         "withdraw_video_caption": "🎬 *{title}*\n\n📹 Watch this tutorial for step-by-step instructions!",
         # --------------------------
         "cashback_video_caption": "🎬 *Cashback Tutorial*\n\n📹 Watch this tutorial to learn how to get 5% cashback and more in the 1xBet app!\n\n💰 After watching, request your remaining 25% cashback below.",
+
+        "cashback_video_not_found": "📹 *Video not found!*\n\nPlease contact admin.",
+        "cashback_request_message": (
+            "💰 *30% Cashback Request*\n\n"
+            "📌 *How it works:*\n"
+            "• You already get 5% cashback in the app\n"
+            "• Request the remaining 25% here\n\n"
+            "📝 *Step 1/2:* Enter your 1xBet Player ID\n\n"
+            "Example: `123456789`\n\n"
+            "Type /cancel to cancel."
+        ),
+    
+    
     },
     "ar": {
         # Bot name and welcome
@@ -445,6 +458,16 @@ LANGUAGES = {
         "withdraw_video_caption": "🎬 *{title}*\n\n📹 شاهد هذا الفيديو التعليمي للحصول على التعليمات خطوة بخطوة!",
         # --------------------------
         "cashback_video_caption": "🎬 *دروس الكاش باك*\n\n📹 شاهد هذا الفيديو التعليمي لمعرفة كيفية الحصول على 5% كاش باك والمزيد في تطبيق 1xBet!\n\n💰 بعد المشاهدة، اطلب الـ 25% المتبقية من الكاش باك أدناه.",
+        "cashback_video_not_found": "📹 *الفيديو غير موجود!*\n\nيرجى الاتصال بالمدير.",
+        "cashback_request_message": (
+            "💰 *طلب كاش باك 30%*\n\n"
+            "📌 *كيف يعمل:*\n"
+            "• تحصل بالفعل على 5% كاش باك في التطبيق\n"
+            "• اطلب الـ 25% المتبقية هنا\n\n"
+            "📝 *الخطوة 1/2:* أدخل معرف اللاعب في 1xBet\n\n"
+            "مثال: `123456789`\n\n"
+            "اكتب /cancel للإلغاء."
+        ),
     }
 }
 
