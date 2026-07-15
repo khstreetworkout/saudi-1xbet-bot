@@ -393,7 +393,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ============================================
 
 async def welcome_new_member(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Send welcome message when new member joins the group"""
+    """Send welcome message - Private DM with name, Public group without name"""
     chat_id = update.effective_chat.id
     
     # Only trigger in your group
@@ -410,14 +410,18 @@ async def welcome_new_member(update: Update, context: ContextTypes.DEFAULT_TYPE)
             continue  # Skip if bot itself joins
         
         user_id = new_member.id
-        user_mention = f"@{new_member.username}" if new_member.username else new_member.first_name
+        first_name = new_member.first_name or "User"
+        username = f"@{new_member.username}" if new_member.username else first_name
         
-        # Get user's preferred language
+        # Get user's preferred language (default to English if not set)
         lang = get_user_language(user_id)
         
+        # ============================================
+        # 1. SEND PRIVATE DM WITH NAME
+        # ============================================
         if lang == "ar":
-            welcome_text = (
-                f"👋 *مرحباً {user_mention}!*\n\n"
+            dm_text = (
+                f"👋 *مرحباً {username}!*\n\n"
                 f"🎰 *مرحباً بك في مجموعة 1xBet السعودية!*\n\n"
                 f"📌 *للحصول على حساب مجاني:*\n"
                 f"• اضغط على الزر أدناه لفتح البوت\n\n"
@@ -426,8 +430,8 @@ async def welcome_new_member(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 f"🔥 *استمتع بخدماتنا!*"
             )
         else:
-            welcome_text = (
-                f"👋 *Welcome {user_mention}!*\n\n"
+            dm_text = (
+                f"👋 *Welcome {username}!*\n\n"
                 f"🎰 *Welcome to 1xBet Saudi Arabia group!*\n\n"
                 f"📌 *To get a free account:*\n"
                 f"• Click the button below to open the bot\n\n"
@@ -442,11 +446,47 @@ async def welcome_new_member(update: Update, context: ContextTypes.DEFAULT_TYPE)
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
+        # Send PRIVATE DM to the user
+        try:
+            await context.bot.send_message(
+                chat_id=user_id,  # Send to user's private chat
+                text=dm_text,
+                parse_mode="Markdown",
+                reply_markup=reply_markup
+            )
+            print(f"✅ Welcome DM sent to {user_id} ({username})")
+        except Exception as e:
+            print(f"❌ Could not send DM to {user_id}: {e}")
+        
+        # ============================================
+        # 2. SEND PUBLIC GROUP WELCOME (WITHOUT NAME)
+        # ============================================
+        if lang == "ar":
+            group_text = (
+                f"👋 *مرحباً!*\n\n"
+                f"🎰 *مرحباً بك في مجموعة 1xBet السعودية!*\n\n"
+                f"📌 *للحصول على حساب مجاني:*\n"
+                f"• اضغط على الزر أدناه لفتح البوت\n\n"
+                f"📞 *للاستفسارات والدعم:*\n"
+                f"• تواصل مع وكيلنا مباشرة\n\n"
+                f"🔥 *استمتع بخدماتنا!*"
+            )
+        else:
+            group_text = (
+                f"👋 *Welcome!*\n\n"
+                f"🎰 *Welcome to 1xBet Saudi Arabia group!*\n\n"
+                f"📌 *To get a free account:*\n"
+                f"• Click the button below to open the bot\n\n"
+                f"📞 *For inquiries and support:*\n"
+                f"• Contact our agent directly\n\n"
+                f"🔥 *Enjoy our services!*"
+            )
+        
+        # Send to the group WITHOUT buttons
         await context.bot.send_message(
-            chat_id=chat_id,
-            text=welcome_text,
-            parse_mode="Markdown",
-            reply_markup=reply_markup
+            chat_id=chat_id,  # Send to the group
+            text=group_text,
+            parse_mode="Markdown"
         )
 
 # ============================================
