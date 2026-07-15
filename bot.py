@@ -600,16 +600,13 @@ async def process_cashback_player_id_request(update: Update, context: ContextTyp
     
     # Show confirmation
     keyboard = [
-        [InlineKeyboardButton("✅ Confirm", callback_data=f"cashback_confirm_{user_id}")],
-        [InlineKeyboardButton("❌ Cancel", callback_data=f"cashback_cancel_{user_id}")]
+        [InlineKeyboardButton(t(user_id, "confirm_button"), callback_data=f"cashback_confirm_{user_id}")],
+        [InlineKeyboardButton(t(user_id, "cancel_button"), callback_data=f"cashback_cancel_{user_id}")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     await update.message.reply_text(
-        f"✅ *Player ID:* `{player_id}`\n\n"
-        f"📊 *Calculating your cashback...*\n\n"
-        f"🔄 Please wait while we verify your account.\n\n"
-        f"Click 'Confirm' to proceed with the request.",
+        t(user_id, "cashback_confirm_message", player_id=player_id),
         parse_mode="Markdown",
         reply_markup=reply_markup
     )
@@ -625,7 +622,7 @@ async def process_cashback_confirm(update: Update, context: ContextTypes.DEFAULT
     
     if user_id not in cashback_requests:
         await query.edit_message_text(
-            "❌ *Session expired!*\n\nPlease start a new request.",
+            t(user_id, "cashback_session_expired"),
             parse_mode="Markdown"
         )
         return
@@ -661,25 +658,22 @@ async def process_cashback_confirm(update: Update, context: ContextTypes.DEFAULT
     cashback_requests[user_id]["cashback_amount"] = cashback_amount
     cashback_requests[user_id]["status"] = "pending"
     
-    # Notify admin
+    # Notify admin (use admin's language)
+    admin_id = ADMIN_ID
     keyboard = [
-        [InlineKeyboardButton("✅ Accept", callback_data=f"cb_accept_{request_id}"),
-         InlineKeyboardButton("❌ Reject", callback_data=f"cb_reject_{request_id}")]
+        [InlineKeyboardButton(t(admin_id, "deposit_accept"), callback_data=f"cb_accept_{request_id}"),
+         InlineKeyboardButton(t(admin_id, "deposit_reject"), callback_data=f"cb_reject_{request_id}")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    admin_message = (
-        f"💰 *New Cashback Request*\n\n"
-        f"🆔 Request ID: `{request_id}`\n"
-        f"👤 User: @{username}\n"
-        f"🆔 Player ID: `{player_id}`\n\n"
-        f"📊 *Calculation:*\n"
-        f"   💳 Total Deposits: {total_deposits:,.0f} SAR\n"
-        f"   💸 Total Withdrawals: {total_withdrawals:,.0f} SAR\n"
-        f"   📊 Net Amount: {net_amount:,.0f} SAR\n"
-        f"   🎯 25% Cashback: *{cashback_amount:,.2f} SAR*\n\n"
-        f"Please review and respond:"
-    )
+    admin_message = t(admin_id, "cashback_admin_notification",
+                      request_id=request_id,
+                      username=username,
+                      player_id=player_id,
+                      total_deposits=total_deposits,
+                      total_withdrawals=total_withdrawals,
+                      net_amount=net_amount,
+                      cashback_amount=cashback_amount)
     
     await context.bot.send_message(
         chat_id=ADMIN_ID,
@@ -695,12 +689,9 @@ async def process_cashback_confirm(update: Update, context: ContextTypes.DEFAULT
     cashback_requests.pop(user_id, None)
     
     await query.edit_message_text(
-        f"✅ *Cashback Request Submitted!*\n\n"
-        f"🆔 Player ID: `{player_id}`\n"
-        f"💰 Requested Amount: {cashback_amount:,.2f} SAR\n\n"
-        f"⏳ Please wait for admin approval.\n"
-        f"You will be notified once processed.\n\n"
-        f"📞 For urgent inquiries, contact our agent.",
+        t(user_id, "cashback_submitted",
+          player_id=player_id,
+          cashback_amount=cashback_amount),
         parse_mode="Markdown"
     )
 
@@ -717,7 +708,7 @@ async def process_cashback_cancel(update: Update, context: ContextTypes.DEFAULT_
         cashback_requests.pop(user_id, None)
     
     await query.edit_message_text(
-        "❌ *Cashback Request Cancelled!*",
+        t(user_id, "cashback_cancelled"),
         parse_mode="Markdown"
     )
 
@@ -730,11 +721,12 @@ async def handle_cashback_admin_action(update: Update, context: ContextTypes.DEF
     parts = data.split("_")
     action = parts[1]  # accept or reject
     request_id = "_".join(parts[2:])
+    admin_id = update.effective_user.id
     
     # Load the request
     request = load_cashback_request(request_id)
     if not request:
-        await query.edit_message_text("❌ *Request not found!*", parse_mode="Markdown")
+        await query.edit_message_text(t(admin_id, "cashback_request_not_found"), parse_mode="Markdown")
         return
     
     if action == "accept":
@@ -747,40 +739,31 @@ async def handle_cashback_admin_action(update: Update, context: ContextTypes.DEF
         request["status"] = "completed"
         save_cashback_request(request_id, request)
         
-        # Notify user
+        # Notify user (in user's language)
         try:
             await context.bot.send_message(
                 chat_id=user_id,
-                text=(
-                    f"✅ *Cashback Approved!*\n\n"
-                    f"💰 Amount: *{cashback_amount:,.2f} SAR*\n"
-                    f"🆔 Player ID: `{player_id}`\n\n"
-                    f"🎉 Cashback has been added to your account!\n"
-                    f"📅 It will reflect in your 1xBet account within 24 hours.\n\n"
-                    f"Thank you for being with us! 🎰"
-                ),
+                text=t(user_id, "cashback_approved",
+                      cashback_amount=cashback_amount,
+                      player_id=player_id),
                 parse_mode="Markdown"
             )
         except Exception as e:
             print(f"Error notifying user: {e}")
         
         await query.edit_message_text(
-            f"✅ *Cashback Accepted!*\n\n"
-            f"Request ID: `{request_id}`\n"
-            f"Amount: {cashback_amount:,.2f} SAR\n"
-            f"User notified.",
+            t(admin_id, "cashback_accepted_admin",
+              request_id=request_id,
+              cashback_amount=cashback_amount),
             parse_mode="Markdown"
         )
         
     else:  # reject
         context.user_data["reject_cashback"] = request_id
         await query.edit_message_text(
-            f"❌ *Reject Cashback*\n\n"
-            f"Request ID: `{request_id}`\n\n"
-            f"Please send the reason for rejection:",
+            t(admin_id, "cashback_reject_prompt", request_id=request_id),
             parse_mode="Markdown"
         )
-
 async def process_cashback_rejection_reason(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Process cashback rejection reason"""
     user_id = update.effective_user.id
@@ -793,7 +776,7 @@ async def process_cashback_rejection_reason(update: Update, context: ContextType
     
     if not reason:
         await update.message.reply_text(
-            "❌ *Please send a text reason for rejection.*",
+            t(user_id, "rejection_prompt"),
             parse_mode="Markdown"
         )
         return True
@@ -801,7 +784,7 @@ async def process_cashback_rejection_reason(update: Update, context: ContextType
     request = load_cashback_request(request_id)
     if not request:
         await update.message.reply_text(
-            "❌ *Request not found!*",
+            t(user_id, "cashback_request_not_found"),
             parse_mode="Markdown"
         )
         return True
@@ -811,23 +794,19 @@ async def process_cashback_rejection_reason(update: Update, context: ContextType
     request["reason"] = reason
     save_cashback_request(request_id, request)
     
-    # Notify user
+    # Notify user (in user's language)
     user_id_user = request.get("user_id")
     try:
         await context.bot.send_message(
             chat_id=user_id_user,
-            text=(
-                f"❌ *Cashback Request Rejected!*\n\n"
-                f"📋 *Reason:*\n{reason}\n\n"
-                f"📞 For more information, contact our agent."
-            ),
+            text=t(user_id_user, "cashback_rejected", reason=reason),
             parse_mode="Markdown"
         )
     except Exception as e:
         print(f"Error notifying user: {e}")
     
     await update.message.reply_text(
-        "✅ Rejection reason sent to user.",
+        t(user_id, "rejection_sent"),
         parse_mode="Markdown",
         reply_markup=get_admin_menu_keyboard(user_id)
     )
