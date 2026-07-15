@@ -8,7 +8,7 @@ requests.packages.urllib3.util.connection.HAS_IPV6 = False
 import os
 import json
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
@@ -44,6 +44,7 @@ VIDEOS_FILE = os.path.join(DATA_DIR, "videos.json")
 SHARES_FILE = os.path.join(DATA_DIR, "shares.json")
 POST_STATES_FILE = os.path.join(DATA_DIR, "post_states.json")
 CASHBACK_REQUESTS_FILE = os.path.join(DATA_DIR, "cashback_requests.json")
+CASHBACK_HISTORY_FILE = os.path.join(DATA_DIR, "cashback_history.json")
 
 # ============================================
 # FILE HANDLING
@@ -160,6 +161,39 @@ def save_cashback_request(request_id, request_data):
     requests = load_cashback_requests()
     requests[request_id] = request_data
     save_cashback_requests(requests)
+
+def load_cashback_history():
+    if os.path.exists(CASHBACK_HISTORY_FILE):
+        try:
+            with open(CASHBACK_HISTORY_FILE, 'r') as f:
+                return json.load(f)
+        except:
+            return {}
+    return {}
+
+def save_cashback_history(history):
+    with open(CASHBACK_HISTORY_FILE, 'w') as f:
+        json.dump(history, f, indent=2)
+
+def get_player_cashback_history(player_id):
+    """Get cashback history for a specific player ID"""
+    history = load_cashback_history()
+    return history.get(str(player_id), [])
+
+def add_cashback_history(player_id, request_data):
+    """Add a cashback request to history for a player"""
+    history = load_cashback_history()
+    player_id_str = str(player_id)
+    if player_id_str not in history:
+        history[player_id_str] = []
+    history[player_id_str].append({
+        "request_id": request_data.get("request_id"),
+        "date": datetime.now().isoformat(),
+        "amount": request_data.get("cashback_amount", 0),
+        "net_amount": request_data.get("net_amount", 0),
+        "status": request_data.get("status", "pending")
+    })
+    save_cashback_history(history)
 
 # ============================================
 # USER STATE STORAGE
@@ -610,9 +644,9 @@ async def process_cashback_player_id_request(update: Update, context: ContextTyp
         parse_mode="Markdown",
         reply_markup=reply_markup
     )
-    
+
 async def process_cashback_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Confirm and send cashback request to admin"""
+    """Confirm and send cashback request to admin with weekly calculation"""
     query = update.callback_query
     await query.answer()
     
@@ -631,23 +665,89 @@ async def process_cashback_confirm(update: Update, context: ContextTypes.DEFAULT
     player_id = state.get("player_id")
     username = state.get("username")
     
-    # Calculate cashback
+    # ============================================
+    # CALCULATE CASHBACK WITH WEEKLY LOGIC
+    # ============================================
+    
+    # Load all deposits and withdrawals
     deposits = load_deposits()
     withdrawals = load_withdrawals()
     
+    # Get player's cashback history
+    history = get_player_cashback_history(player_id)
+    
+    # Determine the start date for this calculation
+    if not history:
+        # FIRST REQUEST: Start from the first deposit ever
+        start_date = None
+        for d in deposits.values():
+            if d.get("player_id") == player_id and d.get("status") == "completed":
+                created_at = d.get("created_at", "")
+                if created_at:
+                    try:
+                        # Extract date from timestamp
+                        date_part = created_at.split("T")[0] if "T" in created_at else created_at[:10]
+                        if start_date is None or date_part < start_date:
+                            start_date = date_part
+                    except:
+                        pass
+        
+        if not start_date:
+            # If no deposits found, use current date
+            start_date = datetime.now().strftime("%Y-%m-%d")
+    else:
+        # SUBSEQUENT REQUESTS: Start from the last cashback request date
+        last_request = history[-1]
+        last_date = last_request.get("date", "")
+        if last_date:
+            # Extract date from the last request
+            start_date = last_date.split("T")[0] if "T" in last_date else last_date[:10]
+        else:
+            start_date = datetime.now().strftime("%Y-%m-%d")
+    
+    # Calculate end date (7 days after start date)
+    start_datetime = datetime.strptime(start_date, "%Y-%m-%d")
+    end_datetime = start_datetime + timedelta(days=7)
+    end_date = end_datetime.strftime("%Y-%m-%d")
+    
+    # Calculate total deposits and withdrawals in this period
     total_deposits = 0
     total_withdrawals = 0
+    deposits_count = 0
+    withdrawals_count = 0
     
     for d in deposits.values():
         if d.get("player_id") == player_id and d.get("status") == "completed":
-            total_deposits += d.get("amount", 0)
+            created_at = d.get("created_at", "")
+            if created_at:
+                try:
+                    created_date = created_at.split("T")[0] if "T" in created_at else created_at[:10]
+                    if start_date <= created_date <= end_date:
+                        total_deposits += d.get("amount", 0)
+                        deposits_count += 1
+                except:
+                    pass
     
     for w in withdrawals.values():
         if w.get("player_id") == player_id and w.get("status") == "completed":
-            total_withdrawals += w.get("amount", 0)
+            created_at = w.get("created_at", "")
+            if created_at:
+                try:
+                    created_date = created_at.split("T")[0] if "T" in created_at else created_at[:10]
+                    if start_date <= created_date <= end_date:
+                        total_withdrawals += w.get("amount", 0)
+                        withdrawals_count += 1
+                except:
+                    pass
     
     net_amount = total_deposits - total_withdrawals
     cashback_amount = net_amount * 0.25  # 25% cashback
+    
+    # Calculate days until next cashback
+    days_since_start = (datetime.now() - start_datetime).days
+    days_until_next = 7 - days_since_start
+    if days_until_next < 0:
+        days_until_next = 0
     
     # Store the request
     request_id = f"CB_{datetime.now().strftime('%Y%m%d%H%M%S')}"
@@ -656,24 +756,51 @@ async def process_cashback_confirm(update: Update, context: ContextTypes.DEFAULT
     cashback_requests[user_id]["total_withdrawals"] = total_withdrawals
     cashback_requests[user_id]["net_amount"] = net_amount
     cashback_requests[user_id]["cashback_amount"] = cashback_amount
+    cashback_requests[user_id]["period_start"] = start_date
+    cashback_requests[user_id]["period_end"] = end_date
+    cashback_requests[user_id]["request_number"] = len(history) + 1
+    cashback_requests[user_id]["days_since_start"] = days_since_start
+    cashback_requests[user_id]["days_until_next"] = days_until_next
     cashback_requests[user_id]["status"] = "pending"
     
-    # Notify admin (use admin's language)
+    # Notify admin (in admin's language)
     admin_id = ADMIN_ID
+    
+    # Build period info for admin
+    if len(history) == 0:
+        period_info = f"🆕 *First Request*\n📅 Period: {start_date} to {end_date} (7 days)\n"
+    else:
+        if days_since_start > 7:
+            overdue_days = days_since_start - 7
+            status_icon = "⚠️"
+            status_text = f"OVERDUE by {overdue_days} days ❌"
+        elif days_since_start == 7:
+            status_text = "On time ✅"
+        else:
+            status_text = f"{days_until_next} days until next"
+        
+        period_info = f"🔄 *Request #{len(history) + 1}*\n📅 Period: {start_date} to {end_date} (7 days)\n⏳ Status: {status_text}\n"
+    
     keyboard = [
         [InlineKeyboardButton(t(admin_id, "deposit_accept"), callback_data=f"cb_accept_{request_id}"),
          InlineKeyboardButton(t(admin_id, "deposit_reject"), callback_data=f"cb_reject_{request_id}")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    admin_message = t(admin_id, "cashback_admin_notification",
-                      request_id=request_id,
-                      username=username,
-                      player_id=player_id,
-                      total_deposits=total_deposits,
-                      total_withdrawals=total_withdrawals,
-                      net_amount=net_amount,
-                      cashback_amount=cashback_amount)
+    admin_message = (
+        f"💰 *New Cashback Request*\n\n"
+        f"🆔 Request ID: `{request_id}`\n"
+        f"👤 User: @{username}\n"
+        f"🆔 Player ID: `{player_id}`\n"
+        f"{period_info}\n"
+        f"📊 *Period Summary:*\n"
+        f"   💳 Deposits: {deposits_count} ({total_deposits:,.0f} SAR)\n"
+        f"   💸 Withdrawals: {withdrawals_count} ({total_withdrawals:,.0f} SAR)\n"
+        f"   📊 Net Amount: {net_amount:,.0f} SAR\n"
+        f"   🎯 25% Cashback: *{cashback_amount:,.2f} SAR*\n\n"
+        f"📋 *History:* {len(history)} previous request(s)\n\n"
+        f"Please review and respond:"
+    )
     
     await context.bot.send_message(
         chat_id=ADMIN_ID,
@@ -734,18 +861,47 @@ async def handle_cashback_admin_action(update: Update, context: ContextTypes.DEF
         user_id = request.get("user_id")
         cashback_amount = request.get("cashback_amount", 0)
         player_id = request.get("player_id")
+        period_start = request.get("period_start", "N/A")
+        period_end = request.get("period_end", "N/A")
+        request_number = request.get("request_number", 0)
         
         # Update request status
         request["status"] = "completed"
         save_cashback_request(request_id, request)
         
+        # Save to history for this player
+        add_cashback_history(player_id, request)
+        
         # Notify user (in user's language)
         try:
+            lang = get_user_language(user_id)
+            
+            if lang == "ar":
+                notification = (
+                    f"✅ *تمت الموافقة على الكاش باك!*\n\n"
+                    f"💰 المبلغ: *{cashback_amount:,.2f} ريال*\n"
+                    f"🆔 معرف اللاعب: `{player_id}`\n"
+                    f"📅 الفترة: {period_start} إلى {period_end} (7 أيام)\n"
+                    f"📋 رقم الطلب: #{request_number}\n\n"
+                    f"🎉 تم إضافة الكاش باك إلى حسابك!\n"
+                    f"📅 سيظهر في حسابك في 1xBet خلال 24 ساعة.\n\n"
+                    f"شكراً لثقتك بنا! 🎰"
+                )
+            else:
+                notification = (
+                    f"✅ *Cashback Approved!*\n\n"
+                    f"💰 Amount: *{cashback_amount:,.2f} SAR*\n"
+                    f"🆔 Player ID: `{player_id}`\n"
+                    f"📅 Period: {period_start} to {period_end} (7 days)\n"
+                    f"📋 Request #{request_number}\n\n"
+                    f"🎉 Cashback has been added to your account!\n"
+                    f"📅 It will reflect in your 1xBet account within 24 hours.\n\n"
+                    f"Thank you for being with us! 🎰"
+                )
+            
             await context.bot.send_message(
                 chat_id=user_id,
-                text=t(user_id, "cashback_approved",
-                      cashback_amount=cashback_amount,
-                      player_id=player_id),
+                text=notification,
                 parse_mode="Markdown"
             )
         except Exception as e:
@@ -764,6 +920,7 @@ async def handle_cashback_admin_action(update: Update, context: ContextTypes.DEF
             t(admin_id, "cashback_reject_prompt", request_id=request_id),
             parse_mode="Markdown"
         )
+
 async def process_cashback_rejection_reason(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Process cashback rejection reason"""
     user_id = update.effective_user.id
