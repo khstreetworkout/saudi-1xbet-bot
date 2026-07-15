@@ -580,7 +580,6 @@ async def cashback_request(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Type /cancel to cancel.",
         parse_mode="Markdown"
     )
-
 async def process_cashback_player_id_request(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Process player ID for cashback request"""
     user_id = str(update.effective_user.id)
