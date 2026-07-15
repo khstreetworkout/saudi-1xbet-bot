@@ -43,6 +43,7 @@ PAYMENT_METHODS_FILE = os.path.join(DATA_DIR, "payment_methods.json")
 VIDEOS_FILE = os.path.join(DATA_DIR, "videos.json")
 SHARES_FILE = os.path.join(DATA_DIR, "shares.json")
 POST_STATES_FILE = os.path.join(DATA_DIR, "post_states.json")
+CASHBACK_REQUESTS_FILE = os.path.join(DATA_DIR, "cashback_requests.json")
 
 # ============================================
 # FILE HANDLING
@@ -138,12 +139,35 @@ def save_post_states(states):
     with open(POST_STATES_FILE, 'w') as f:
         json.dump(states, f, indent=2)
 
+def load_cashback_requests():
+    if os.path.exists(CASHBACK_REQUESTS_FILE):
+        try:
+            with open(CASHBACK_REQUESTS_FILE, 'r') as f:
+                return json.load(f)
+        except:
+            return {}
+    return {}
+
+def save_cashback_requests(requests):
+    with open(CASHBACK_REQUESTS_FILE, 'w') as f:
+        json.dump(requests, f, indent=2)
+
+def load_cashback_request(request_id):
+    requests = load_cashback_requests()
+    return requests.get(request_id)
+
+def save_cashback_request(request_id, request_data):
+    requests = load_cashback_requests()
+    requests[request_id] = request_data
+    save_cashback_requests(requests)
+
 # ============================================
 # USER STATE STORAGE
 # ============================================
 user_states = {}
 admin_states = {}
 post_states = {}
+cashback_requests = {}
 
 # ============================================
 # HELPER FUNCTIONS
@@ -195,7 +219,7 @@ def get_main_menu_keyboard(user_id=None):
         [t(user_id, "get_account"), t(user_id, "talk_to_agent")],
         [t(user_id, "my_accounts"), t(user_id, "deposit_withdraw")],
         [t(user_id, "video_tutorials")],
-        [t(user_id, "share_bot")],
+        ["💰 Request Cashback", t(user_id, "share_bot")],
         [t(user_id, "back_to_menu")]
     ], resize_keyboard=True)
 
@@ -206,7 +230,7 @@ def get_admin_menu_keyboard(user_id=None):
         [t(user_id, "get_account"), t(user_id, "talk_to_agent")],
         [t(user_id, "my_accounts"), t(user_id, "deposit_withdraw")],
         [t(user_id, "video_tutorials")],
-        [t(user_id, "share_bot")],
+        ["💰 Request Cashback", t(user_id, "share_bot")],
         ["📝 Add Post", t(user_id, "stats")],
         [t(user_id, "list_accounts"), t(user_id, "add_accounts")],
         [t(user_id, "payment_methods"), t(user_id, "back_to_menu")]
@@ -365,9 +389,25 @@ async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
+    
+    # Cashback admin actions
+    if query.data.startswith(("cb_accept_", "cb_reject_")):
+        await handle_cashback_admin_action(update, context)
+        return
+    
+    # Cashback user confirm/cancel
+    if query.data.startswith("cashback_confirm_"):
+        await process_cashback_confirm(update, context)
+        return
+    
+    if query.data.startswith("cashback_cancel_"):
+        await process_cashback_cancel(update, context)
+        return
+    
     if query.data.startswith(("deposit_accept_", "deposit_reject_", "withdraw_accept_", "withdraw_reject_")):
         await handle_accountant_action(update, context)
         return
+    
     if query.data == "check_subscription":
         user_id = query.from_user.id
         is_member = await is_user_member(user_id, "saudi_1xbet_accounts", context)
@@ -384,6 +424,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 reply_markup=InlineKeyboardMarkup(keyboard)
             )
         return
+    
     if query.data.startswith("lang_"):
         await language_callback(update, context)
         return
@@ -492,6 +533,312 @@ async def welcome_new_member(update: Update, context: ContextTypes.DEFAULT_TYPE)
             parse_mode="Markdown",
             reply_markup=reply_markup  # ✅ WITH buttons
         )
+
+# ============================================
+# CASHBACK REQUEST SYSTEM
+# ============================================
+
+async def cashback_request(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle cashback request from user"""
+    user_id = str(update.effective_user.id)
+    
+    # Send the tutorial video
+    videos = load_videos()
+    video_found = False
+    
+    # Look for video with specific ID or cashback in title
+    for vid, data in videos.items():
+        if vid == "VID_20260715013849" or "cashback" in data['title'].lower():
+            try:
+                await update.message.reply_video(
+                    video=data['file_id'],
+                    caption=t(user_id, "cashback_video_caption"),
+                    parse_mode="Markdown"
+                )
+                video_found = True
+                break
+            except Exception as e:
+                print(f"Error sending cashback video: {e}")
+    
+    if not video_found:
+        await update.message.reply_text(
+            "📹 *Video not found!*\n\nPlease contact admin.",
+            parse_mode="Markdown"
+        )
+        return
+    
+    # Ask for player ID
+    cashback_requests[user_id] = {"step": "waiting_for_player_id"}
+    
+    await update.message.reply_text(
+        "💰 *30% Cashback Request*\n\n"
+        "📌 *How it works:*\n"
+        "• You already get 5% cashback in the app\n"
+        "• Request the remaining 25% here\n\n"
+        "📝 *Step 1/2:* Enter your 1xBet Player ID\n\n"
+        "Example: `123456789`\n\n"
+        "Type /cancel to cancel.",
+        parse_mode="Markdown"
+    )
+
+async def process_cashback_player_id_request(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Process player ID for cashback request"""
+    user_id = str(update.effective_user.id)
+    
+    if user_id not in cashback_requests:
+        return
+    
+    if cashback_requests[user_id].get("step") != "waiting_for_player_id":
+        return
+    
+    player_id = update.message.text.strip()
+    if not player_id.isdigit():
+        await update.message.reply_text(
+            "❌ *Invalid Player ID!*\n\nPlease enter a numeric Player ID.",
+            parse_mode="Markdown"
+        )
+        return
+    
+    cashback_requests[user_id]["player_id"] = player_id
+    cashback_requests[user_id]["step"] = "waiting_for_confirmation"
+    cashback_requests[user_id]["username"] = update.effective_user.username or "NoUsername"
+    cashback_requests[user_id]["user_id"] = user_id
+    
+    # Show confirmation
+    keyboard = [
+        [InlineKeyboardButton("✅ Confirm", callback_data=f"cashback_confirm_{user_id}")],
+        [InlineKeyboardButton("❌ Cancel", callback_data=f"cashback_cancel_{user_id}")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await update.message.reply_text(
+        f"✅ *Player ID:* `{player_id}`\n\n"
+        f"📊 *Calculating your cashback...*\n\n"
+        f"🔄 Please wait while we verify your account.\n\n"
+        f"Click 'Confirm' to proceed with the request.",
+        parse_mode="Markdown",
+        reply_markup=reply_markup
+    )
+
+async def process_cashback_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Confirm and send cashback request to admin"""
+    query = update.callback_query
+    await query.answer()
+    
+    data = query.data
+    parts = data.split("_")
+    user_id = parts[2]
+    
+    if user_id not in cashback_requests:
+        await query.edit_message_text(
+            "❌ *Session expired!*\n\nPlease start a new request.",
+            parse_mode="Markdown"
+        )
+        return
+    
+    state = cashback_requests[user_id]
+    player_id = state.get("player_id")
+    username = state.get("username")
+    
+    # Calculate cashback
+    deposits = load_deposits()
+    withdrawals = load_withdrawals()
+    
+    total_deposits = 0
+    total_withdrawals = 0
+    
+    for d in deposits.values():
+        if d.get("player_id") == player_id and d.get("status") == "completed":
+            total_deposits += d.get("amount", 0)
+    
+    for w in withdrawals.values():
+        if w.get("player_id") == player_id and w.get("status") == "completed":
+            total_withdrawals += w.get("amount", 0)
+    
+    net_amount = total_deposits - total_withdrawals
+    cashback_amount = net_amount * 0.25  # 25% cashback
+    
+    # Store the request
+    request_id = f"CB_{datetime.now().strftime('%Y%m%d%H%M%S')}"
+    cashback_requests[user_id]["request_id"] = request_id
+    cashback_requests[user_id]["total_deposits"] = total_deposits
+    cashback_requests[user_id]["total_withdrawals"] = total_withdrawals
+    cashback_requests[user_id]["net_amount"] = net_amount
+    cashback_requests[user_id]["cashback_amount"] = cashback_amount
+    cashback_requests[user_id]["status"] = "pending"
+    
+    # Notify admin
+    keyboard = [
+        [InlineKeyboardButton("✅ Accept", callback_data=f"cb_accept_{request_id}"),
+         InlineKeyboardButton("❌ Reject", callback_data=f"cb_reject_{request_id}")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    admin_message = (
+        f"💰 *New Cashback Request*\n\n"
+        f"🆔 Request ID: `{request_id}`\n"
+        f"👤 User: @{username}\n"
+        f"🆔 Player ID: `{player_id}`\n\n"
+        f"📊 *Calculation:*\n"
+        f"   💳 Total Deposits: {total_deposits:,.0f} SAR\n"
+        f"   💸 Total Withdrawals: {total_withdrawals:,.0f} SAR\n"
+        f"   📊 Net Amount: {net_amount:,.0f} SAR\n"
+        f"   🎯 25% Cashback: *{cashback_amount:,.2f} SAR*\n\n"
+        f"Please review and respond:"
+    )
+    
+    await context.bot.send_message(
+        chat_id=ADMIN_ID,
+        text=admin_message,
+        parse_mode="Markdown",
+        reply_markup=reply_markup
+    )
+    
+    # Save request to file
+    save_cashback_request(request_id, cashback_requests[user_id])
+    
+    # Clear the state
+    cashback_requests.pop(user_id, None)
+    
+    await query.edit_message_text(
+        f"✅ *Cashback Request Submitted!*\n\n"
+        f"🆔 Player ID: `{player_id}`\n"
+        f"💰 Requested Amount: {cashback_amount:,.2f} SAR\n\n"
+        f"⏳ Please wait for admin approval.\n"
+        f"You will be notified once processed.\n\n"
+        f"📞 For urgent inquiries, contact our agent.",
+        parse_mode="Markdown"
+    )
+
+async def process_cashback_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Cancel cashback request"""
+    query = update.callback_query
+    await query.answer()
+    
+    data = query.data
+    parts = data.split("_")
+    user_id = parts[2]
+    
+    if user_id in cashback_requests:
+        cashback_requests.pop(user_id, None)
+    
+    await query.edit_message_text(
+        "❌ *Cashback Request Cancelled!*",
+        parse_mode="Markdown"
+    )
+
+async def handle_cashback_admin_action(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle admin accept/reject for cashback"""
+    query = update.callback_query
+    await query.answer()
+    
+    data = query.data
+    parts = data.split("_")
+    action = parts[1]  # accept or reject
+    request_id = "_".join(parts[2:])
+    
+    # Load the request
+    request = load_cashback_request(request_id)
+    if not request:
+        await query.edit_message_text("❌ *Request not found!*", parse_mode="Markdown")
+        return
+    
+    if action == "accept":
+        # Process acceptance
+        user_id = request.get("user_id")
+        cashback_amount = request.get("cashback_amount", 0)
+        player_id = request.get("player_id")
+        
+        # Update request status
+        request["status"] = "completed"
+        save_cashback_request(request_id, request)
+        
+        # Notify user
+        try:
+            await context.bot.send_message(
+                chat_id=user_id,
+                text=(
+                    f"✅ *Cashback Approved!*\n\n"
+                    f"💰 Amount: *{cashback_amount:,.2f} SAR*\n"
+                    f"🆔 Player ID: `{player_id}`\n\n"
+                    f"🎉 Cashback has been added to your account!\n"
+                    f"📅 It will reflect in your 1xBet account within 24 hours.\n\n"
+                    f"Thank you for being with us! 🎰"
+                ),
+                parse_mode="Markdown"
+            )
+        except Exception as e:
+            print(f"Error notifying user: {e}")
+        
+        await query.edit_message_text(
+            f"✅ *Cashback Accepted!*\n\n"
+            f"Request ID: `{request_id}`\n"
+            f"Amount: {cashback_amount:,.2f} SAR\n"
+            f"User notified.",
+            parse_mode="Markdown"
+        )
+        
+    else:  # reject
+        context.user_data["reject_cashback"] = request_id
+        await query.edit_message_text(
+            f"❌ *Reject Cashback*\n\n"
+            f"Request ID: `{request_id}`\n\n"
+            f"Please send the reason for rejection:",
+            parse_mode="Markdown"
+        )
+
+async def process_cashback_rejection_reason(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Process cashback rejection reason"""
+    user_id = update.effective_user.id
+    
+    if "reject_cashback" not in context.user_data:
+        return False
+    
+    request_id = context.user_data.pop("reject_cashback")
+    reason = update.message.text
+    
+    if not reason:
+        await update.message.reply_text(
+            "❌ *Please send a text reason for rejection.*",
+            parse_mode="Markdown"
+        )
+        return True
+    
+    request = load_cashback_request(request_id)
+    if not request:
+        await update.message.reply_text(
+            "❌ *Request not found!*",
+            parse_mode="Markdown"
+        )
+        return True
+    
+    # Update request status
+    request["status"] = "rejected"
+    request["reason"] = reason
+    save_cashback_request(request_id, request)
+    
+    # Notify user
+    user_id_user = request.get("user_id")
+    try:
+        await context.bot.send_message(
+            chat_id=user_id_user,
+            text=(
+                f"❌ *Cashback Request Rejected!*\n\n"
+                f"📋 *Reason:*\n{reason}\n\n"
+                f"📞 For more information, contact our agent.",
+                parse_mode="Markdown"
+            )
+        )
+    except Exception as e:
+        print(f"Error notifying user: {e}")
+    
+    await update.message.reply_text(
+        "✅ Rejection reason sent to user.",
+        reply_markup=get_admin_menu_keyboard(user_id)
+    )
+    
+    return True
+
 # ============================================
 # ADMIN POST CREATION SYSTEM
 # ============================================
@@ -933,8 +1280,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # ============================================
     # COMPLETELY IGNORE ALL MESSAGES IN THE GROUP
     # ============================================
-    GROUP_CHAT_ID = -1004309440596
-    
     if chat_id == GROUP_CHAT_ID:
         # Only handle new member welcome messages
         if update.message and update.message.new_chat_members:
@@ -944,6 +1289,16 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     await update.message.chat.send_action(action="typing")
+
+    # ============================================
+    # CASHBACK REQUEST FLOW
+    # ============================================
+    if user_id in cashback_requests:
+        state = cashback_requests[user_id]
+        step = state.get("step")
+        if step == "waiting_for_player_id":
+            await process_cashback_player_id_request(update, context)
+            return
 
     # ============================================
     # POST CREATION FLOW
@@ -1044,6 +1399,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(t(user_id, "unauthorized"), parse_mode="Markdown")
             return
         await add_post(update, context)
+        return
+
+    # Cashback Request Button
+    if message_text == "💰 Request Cashback":
+        await cashback_request(update, context)
         return
 
     # Admin: Stats Menu
@@ -1169,6 +1529,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="Markdown",
         reply_markup=get_main_menu_keyboard(user_id)
     )
+
 # ============================================
 # SHARE BOT
 # ============================================
@@ -1347,7 +1708,7 @@ async def process_user_stats(update: Update, context: ContextTypes.DEFAULT_TYPE)
     )
 
 # ============================================
-# CASHBACK CALCULATOR
+# CASHBACK CALCULATOR (Admin)
 # ============================================
 
 async def show_cashback_calculator(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -2065,6 +2426,11 @@ async def process_withdraw_amount(update: Update, context: ContextTypes.DEFAULT_
 
 async def process_rejection_reason(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
+    
+    # Cashback rejection
+    if "reject_cashback" in context.user_data:
+        return await process_cashback_rejection_reason(update, context)
+    
     if "reject_deposit" in context.user_data:
         request_id = context.user_data.pop("reject_deposit")
         deposits = load_deposits()
