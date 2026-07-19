@@ -45,6 +45,7 @@ SHARES_FILE = os.path.join(DATA_DIR, "shares.json")
 POST_STATES_FILE = os.path.join(DATA_DIR, "post_states.json")
 CASHBACK_REQUESTS_FILE = os.path.join(DATA_DIR, "cashback_requests.json")
 CASHBACK_HISTORY_FILE = os.path.join(DATA_DIR, "cashback_history.json")
+BANNED_FILE = os.path.join(DATA_DIR, "banned_users.json")
 
 # ============================================
 # FILE HANDLING
@@ -198,6 +199,113 @@ def add_cashback_history(player_id, request_data):
     save_cashback_history(history)
 
 # ============================================
+# BANNED USERS SYSTEM
+# ============================================
+
+def load_banned():
+    if os.path.exists(BANNED_FILE):
+        try:
+            with open(BANNED_FILE, 'r') as f:
+                return json.load(f)
+        except:
+            return []
+    return []
+
+def save_banned(banned):
+    with open(BANNED_FILE, 'w') as f:
+        json.dump(banned, f, indent=2)
+
+async def ban_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Ban a user by ID"""
+    user_id = update.effective_user.id
+    if user_id != ADMIN_ID:
+        await update.message.reply_text(t(user_id, "unauthorized"), parse_mode="Markdown")
+        return
+    
+    if not context.args:
+        await update.message.reply_text(
+            "📝 *Usage:* `/ban USER_ID`\n\n"
+            "Example: `/ban 123456789`\n\n"
+            "You can find User ID from:\n"
+            "• `used_accounts.json`\n"
+            "• `deposits.json`\n"
+            "• `withdrawals.json`",
+            parse_mode="Markdown"
+        )
+        return
+    
+    target_user = context.args[0]
+    banned = load_banned()
+    
+    if target_user not in banned:
+        banned.append(target_user)
+        save_banned(banned)
+        await update.message.reply_text(
+            f"✅ *User `{target_user}` has been banned!*\n\n"
+            f"They will no longer be able to use the bot.",
+            parse_mode="Markdown"
+        )
+    else:
+        await update.message.reply_text(
+            f"ℹ️ *User `{target_user}` is already banned.*",
+            parse_mode="Markdown"
+        )
+
+async def unban_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Unban a user by ID"""
+    user_id = update.effective_user.id
+    if user_id != ADMIN_ID:
+        await update.message.reply_text(t(user_id, "unauthorized"), parse_mode="Markdown")
+        return
+    
+    if not context.args:
+        await update.message.reply_text(
+            "📝 *Usage:* `/unban USER_ID`\n\n"
+            "Example: `/unban 123456789`",
+            parse_mode="Markdown"
+        )
+        return
+    
+    target_user = context.args[0]
+    banned = load_banned()
+    
+    if target_user in banned:
+        banned.remove(target_user)
+        save_banned(banned)
+        await update.message.reply_text(
+            f"✅ *User `{target_user}` has been unbanned!*\n\n"
+            f"They can now use the bot again.",
+            parse_mode="Markdown"
+        )
+    else:
+        await update.message.reply_text(
+            f"ℹ️ *User `{target_user}` is not banned.*",
+            parse_mode="Markdown"
+        )
+
+async def list_banned(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """List all banned users"""
+    user_id = update.effective_user.id
+    if user_id != ADMIN_ID:
+        await update.message.reply_text(t(user_id, "unauthorized"), parse_mode="Markdown")
+        return
+    
+    banned = load_banned()
+    
+    if not banned:
+        await update.message.reply_text(
+            "📋 *No banned users.*",
+            parse_mode="Markdown"
+        )
+        return
+    
+    banned_list = "\n".join([f"• `{uid}`" for uid in banned])
+    await update.message.reply_text(
+        f"🚫 *Banned Users ({len(banned)})*\n\n{banned_list}",
+        parse_mode="Markdown"
+    )
+
+# ============================================
 # USER STATE STORAGE
 # ============================================
 user_states = {}
@@ -269,7 +377,17 @@ def get_admin_menu_keyboard(user_id=None):
         ["💰 Request Cashback", t(user_id, "share_bot")],
         ["📝 Add Post", t(user_id, "stats")],
         [t(user_id, "list_accounts"), t(user_id, "add_accounts")],
-        [t(user_id, "payment_methods"), t(user_id, "back_to_menu")]
+        [t(user_id, "payment_methods"), "🚫 Ban/Unban"],
+        [t(user_id, "back_to_menu")]
+    ], resize_keyboard=True)
+
+def get_ban_menu_keyboard(user_id=None):
+    if user_id is None:
+        user_id = 0
+    return ReplyKeyboardMarkup([
+        ["🚫 Ban User", "✅ Unban User"],
+        ["📋 Banned List"],
+        [t(user_id, "back_to_menu")]
     ], resize_keyboard=True)
 
 def get_back_to_menu_keyboard(user_id=None):
@@ -390,6 +508,17 @@ async def show_main_menu_from_callback(query, context):
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
+    
+    # ✅ CHECK IF USER IS BANNED
+    if str(user_id) in load_banned():
+        await update.message.reply_text(
+            "🚫 *You have been banned from using this bot.*\n\n"
+            "If you think this is a mistake, contact our agent:\n"
+            f"{AGENT_USERNAME}",
+            parse_mode="Markdown"
+        )
+        return
+    
     languages = load_languages()
     if str(user_id) not in languages:
         keyboard = [
@@ -430,6 +559,17 @@ async def is_user_member(user_id, channel_username, context):
 
 async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
+    
+    # ✅ CHECK IF USER IS BANNED
+    if str(user_id) in load_banned():
+        await update.message.reply_text(
+            "🚫 *You have been banned from using this bot.*\n\n"
+            "If you think this is a mistake, contact our agent:\n"
+            f"{AGENT_USERNAME}",
+            parse_mode="Markdown"
+        )
+        return
+    
     username = update.effective_user.username or "NoUsername"
     update_user_data(str(user_id), username)
     if user_id == ADMIN_ID:
@@ -464,6 +604,15 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if query.data == "check_subscription":
         user_id = query.from_user.id
+        
+        # ✅ CHECK IF USER IS BANNED
+        if str(user_id) in load_banned():
+            await query.message.reply_text(
+                "🚫 *You have been banned from using this bot.*",
+                parse_mode="Markdown"
+            )
+            return
+        
         is_member = await is_user_member(user_id, "saudi_1xbet_accounts", context)
         if is_member:
             await query.message.reply_text(t(user_id, "subscription_verified"), reply_markup=get_main_menu_keyboard(user_id))
@@ -596,6 +745,14 @@ async def cashback_request(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle cashback request from user"""
     user_id = str(update.effective_user.id)
     
+    # ✅ CHECK IF USER IS BANNED
+    if user_id in load_banned():
+        await update.message.reply_text(
+            "🚫 *You have been banned from using this bot.*",
+            parse_mode="Markdown"
+        )
+        return
+    
     # Send the tutorial video
     videos = load_videos()
     video_found = False
@@ -632,6 +789,14 @@ async def cashback_request(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def process_cashback_player_id_request(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Process player ID for cashback request"""
     user_id = str(update.effective_user.id)
+    
+    # ✅ CHECK IF USER IS BANNED
+    if user_id in load_banned():
+        await update.message.reply_text(
+            "🚫 *You have been banned from using this bot.*",
+            parse_mode="Markdown"
+        )
+        return
     
     if user_id not in cashback_requests:
         return
@@ -673,6 +838,14 @@ async def process_cashback_confirm(update: Update, context: ContextTypes.DEFAULT
     data = query.data
     parts = data.split("_")
     user_id = parts[2]
+    
+    # ✅ CHECK IF USER IS BANNED
+    if user_id in load_banned():
+        await query.edit_message_text(
+            "🚫 *You have been banned from using this bot.*",
+            parse_mode="Markdown"
+        )
+        return
     
     if user_id not in cashback_requests:
         await query.edit_message_text(
@@ -1413,6 +1586,143 @@ async def get_group_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"🆔 *Group ID:* `{chat_id}`", parse_mode="Markdown")
 
 # ============================================
+# BAN MENU HANDLER
+# ============================================
+
+async def ban_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Show ban management menu"""
+    user_id = update.effective_user.id
+    if user_id != ADMIN_ID:
+        await update.message.reply_text(t(user_id, "unauthorized"), parse_mode="Markdown")
+        return
+    
+    await update.message.reply_text(
+        "🚫 *Ban / Unban Management*\n\n"
+        "Select an option below:\n\n"
+        "• *Ban User* - Block a user from the bot\n"
+        "• *Unban User* - Unblock a user\n"
+        "• *Banned List* - View all banned users\n\n"
+        "📌 *To find a User ID:*\n"
+        "Check `used_accounts.json`, `deposits.json`, or `withdrawals.json`",
+        parse_mode="Markdown",
+        reply_markup=get_ban_menu_keyboard(user_id)
+    )
+
+async def handle_ban_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle ban menu buttons"""
+    user_id = update.effective_user.id
+    message_text = update.message.text
+    
+    if user_id != ADMIN_ID:
+        await update.message.reply_text(t(user_id, "unauthorized"), parse_mode="Markdown")
+        return
+    
+    if message_text == "🚫 Ban User":
+        await update.message.reply_text(
+            "📝 *Enter the User ID to ban:*\n\n"
+            "Send the numeric User ID.\n"
+            "Example: `123456789`\n\n"
+            "Type /cancel to cancel.",
+            parse_mode="Markdown"
+        )
+        # Set state for ban input
+        admin_states[str(user_id)] = {"action": "ban_input"}
+        return
+    
+    elif message_text == "✅ Unban User":
+        await update.message.reply_text(
+            "📝 *Enter the User ID to unban:*\n\n"
+            "Send the numeric User ID.\n"
+            "Example: `123456789`\n\n"
+            "Type /cancel to cancel.",
+            parse_mode="Markdown"
+        )
+        # Set state for unban input
+        admin_states[str(user_id)] = {"action": "unban_input"}
+        return
+    
+    elif message_text == "📋 Banned List":
+        await list_banned(update, context)
+        return
+    
+    elif message_text == t(user_id, "back_to_menu"):
+        admin_states.pop(str(user_id), None)
+        await show_main_menu(update, context)
+        return
+
+async def process_ban_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Process ban user input"""
+    user_id = str(update.effective_user.id)
+    target_user = update.message.text.strip()
+    
+    if target_user.lower() == "/cancel":
+        admin_states.pop(user_id, None)
+        await update.message.reply_text("❌ Cancelled.", reply_markup=get_admin_menu_keyboard(user_id))
+        return
+    
+    if not target_user.isdigit():
+        await update.message.reply_text(
+            "❌ *Invalid User ID!*\n\n"
+            "Please enter a numeric User ID.\n"
+            "Example: `123456789`",
+            parse_mode="Markdown"
+        )
+        return
+    
+    banned = load_banned()
+    if target_user not in banned:
+        banned.append(target_user)
+        save_banned(banned)
+        admin_states.pop(user_id, None)
+        await update.message.reply_text(
+            f"✅ *User `{target_user}` has been banned!*",
+            parse_mode="Markdown",
+            reply_markup=get_admin_menu_keyboard(user_id)
+        )
+    else:
+        await update.message.reply_text(
+            f"ℹ️ *User `{target_user}` is already banned.*",
+            parse_mode="Markdown",
+            reply_markup=get_admin_menu_keyboard(user_id)
+        )
+
+async def process_unban_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Process unban user input"""
+    user_id = str(update.effective_user.id)
+    target_user = update.message.text.strip()
+    
+    if target_user.lower() == "/cancel":
+        admin_states.pop(user_id, None)
+        await update.message.reply_text("❌ Cancelled.", reply_markup=get_admin_menu_keyboard(user_id))
+        return
+    
+    if not target_user.isdigit():
+        await update.message.reply_text(
+            "❌ *Invalid User ID!*\n\n"
+            "Please enter a numeric User ID.\n"
+            "Example: `123456789`",
+            parse_mode="Markdown"
+        )
+        return
+    
+    banned = load_banned()
+    if target_user in banned:
+        banned.remove(target_user)
+        save_banned(banned)
+        admin_states.pop(user_id, None)
+        await update.message.reply_text(
+            f"✅ *User `{target_user}` has been unbanned!*",
+            parse_mode="Markdown",
+            reply_markup=get_admin_menu_keyboard(user_id)
+        )
+    else:
+        await update.message.reply_text(
+            f"ℹ️ *User `{target_user}` is not banned.*",
+            parse_mode="Markdown",
+            reply_markup=get_admin_menu_keyboard(user_id)
+        )
+
+# ============================================
 # MESSAGE HANDLER
 # ============================================
 
@@ -1420,6 +1730,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
     chat_id = update.effective_chat.id
     used_data = load_used()
+    
+    # ============================================
+    # CHECK IF USER IS BANNED - FIRST THING!
+    # ============================================
+    if user_id in load_banned():
+        # Don't respond to banned users at all
+        return
     
     # ============================================
     # COMPLETELY IGNORE ALL MESSAGES IN THE GROUP
@@ -1433,6 +1750,19 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     await update.message.chat.send_action(action="typing")
+
+    # ============================================
+    # BAN MENU HANDLING
+    # ============================================
+    if user_id in admin_states:
+        state = admin_states[user_id]
+        action = state.get("action")
+        if action == "ban_input":
+            await process_ban_input(update, context)
+            return
+        elif action == "unban_input":
+            await process_unban_input(update, context)
+            return
 
     # ============================================
     # CASHBACK REQUEST FLOW
@@ -1543,6 +1873,19 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(t(user_id, "unauthorized"), parse_mode="Markdown")
             return
         await add_post(update, context)
+        return
+
+    # Admin: Ban Menu Button
+    if message_text == "🚫 Ban/Unban":
+        if update.effective_user.id != ADMIN_ID:
+            await update.message.reply_text(t(user_id, "unauthorized"), parse_mode="Markdown")
+            return
+        await ban_menu(update, context)
+        return
+
+    # Handle ban menu buttons
+    if message_text in ["🚫 Ban User", "✅ Unban User", "📋 Banned List"]:
+        await handle_ban_buttons(update, context)
         return
 
     # Cashback Request Button
@@ -3016,6 +3359,11 @@ def main():
     app.add_handler(CommandHandler("getid", get_group_id))
     app.add_handler(CommandHandler("addpost", add_post))
     app.add_handler(CommandHandler("cancelpost", cancel_post))
+    
+    # Ban commands
+    app.add_handler(CommandHandler("ban", ban_user))
+    app.add_handler(CommandHandler("unban", unban_user))
+    app.add_handler(CommandHandler("banned", list_banned))
 
     # ============================================
     # GROUP WELCOME HANDLER
